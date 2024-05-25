@@ -82,16 +82,17 @@ fi
 
     # Checks to see if there are any missing utility program commands.  If any are not found then whichever is recorded last is displayed.
     missing_util="u"
-    if [[ ! `command -v xmlstarlet` ]]; then missing_util="xmlstarlet"; missing_lang="XML file parsing"; fi
-    if [[ ! `command -v jq` ]]; then missing_util="jq"; missing_lang="JSON file parsing"; fi
-    if [[ ! `command -v curl` ]]; then missing_util="curl"; missing_lang="download"; fi
+    if [[ ! `command -v xmlstarlet` ]]; then missing_util_name="xmlstarlet"; missing_util_package="xmlstarlet"; missing_lang="XML file parsing"; fi
+    if [[ ! `command -v jq` ]]; then missing_util_name="jq"; missing_util_package="jq"; missing_lang="JSON file parsing"; fi
+    if [[ ! `command -v curl` ]]; then missing_util_name="curl"; missing_util_package="curl"; missing_lang="download"; fi
+    if [[ ! `command -v nslookup` ]]; then missing_util_name="nslookup"; missing_util_package="dnsutils"; missing_lang="network checking"; fi
 
     if [[ "$missing_util" != "u" ]]; then
-        printf "\n   $lty Uh oh - it appears that '$missing_util', is not installed on your operating system. $norm\n   $lty This script for Linux/OSX requires that '$missing_util', a $missing_lang utility program, be installed. $norm\n\n"
-        [[ "$distro_like" == "debian" ]] && printf "   $lty Your OS appears to be a 'debian' based linux distribution. $norm \n   $lty If you have the APT package manager you should be able to install with the following commands: $norm\n\n       $lty sudo apt update $norm \n       $lty sudo apt upgrade $norm \n       $lty sudo apt install $missing_util $norm \n"
-        [[ "$distro_like" == "arch" ]] && printf "   $lty Your OS appears to be an 'arch' based linux distribution. $norm \n   $lty If you have the 'pacman' package manager you should be able to install with the following commands: $norm\n\n       $lty sudo pacman -Sy $norm \n       $lty sudo pacman -S $missing_util $norm \n"
-        [[ "$distro_like" == "fedora" ]] && printf "   $lty Your OS appears to be a 'fedora' based linux distribution. $norm \n   $lty If you have the 'YUM' or newer 'DNF' package manager you should be able to install with the following commands: $norm\n\n       $lty sudo yum update $norm       # using yum\n       $lty sudo yum install $missing_util $norm # using yum\n\n       $lty sudo dnf check-update $norm # using dnf\n       $lty sudo dnf install $missing_util $norm # using dnf\n"
-        [[ "$distro_like" == "macos" ]] && printf "   $lty Your OS appears to be a 'Darwin' based distribution - which means 'macOS' / 'OSX'. $norm \n   $lty It is suggested to use the 'homebrew' utility to install missing packages - https://brew.sh/ $norm\n\n   $lty From a terminal window or linux prompt: $norm\n\n       $lty brew install $missing_util $norm\n"
+        printf "\n   $lty Uh oh - it appears that '$missing_util_name', is not installed on your operating system. $norm\n   $lty This script for Linux/OSX requires that '$missing_util_name', a $missing_lang utility program, be installed. $norm\n\n"
+        [[ "$distro_like" == "debian" ]] && printf "   $lty Your OS appears to be a 'debian' based linux distribution. $norm \n   $lty If you have the APT package manager you should be able to install with the following commands: $norm\n\n       $lty sudo apt update $norm \n       $lty sudo apt upgrade $norm \n       $lty sudo apt install $missing_util_package $norm \n"
+        [[ "$distro_like" == "arch" ]] && printf "   $lty Your OS appears to be an 'arch' based linux distribution. $norm \n   $lty If you have the 'pacman' package manager you should be able to install with the following commands: $norm\n\n       $lty sudo pacman -Sy $norm \n       $lty sudo pacman -S $missing_util_package $norm \n"
+        [[ "$distro_like" == "fedora" ]] && printf "   $lty Your OS appears to be a 'fedora' based linux distribution. $norm \n   $lty If you have the 'YUM' or newer 'DNF' package manager you should be able to install with the following commands: $norm\n\n       $lty sudo yum update $norm       # using yum\n       $lty sudo yum install $missing_util_package $norm # using yum\n\n       $lty sudo dnf check-update $norm # using dnf\n       $lty sudo dnf install $missing_util_package $norm # using dnf\n"
+        [[ "$distro_like" == "macos" ]] && printf "   $lty Your OS appears to be a 'Darwin' based distribution - which means 'macOS' / 'OSX'. $norm \n   $lty It is suggested to use the 'homebrew' utility to install missing packages - https://brew.sh/ $norm\n\n   $lty From a terminal window or linux prompt: $norm\n\n       $lty brew install $missing_util_package $norm\n"
 
         if [[ "$distro_like" != "linux" ]]; then
             printf "\n   $lty If the detected distribution seems incorrect or suggested install method(s) do not work for you: $norm\n    $lty web-search on how to install '$missing_util' with your OS type. $norm \n\n";
