@@ -81,7 +81,7 @@ fi
     fi
 
     # Checks to see if there are any missing utility program commands.  If any are not found then whichever is recorded last is displayed.
-    missing_util="u"
+    missing_util_name="u"
     if [[ ! `command -v xmlstarlet` ]]; then missing_util_name="xmlstarlet"; missing_util_package="xmlstarlet"; missing_lang="XML file parsing"; fi
     if [[ ! `command -v jq` ]]; then missing_util_name="jq"; missing_util_package="jq"; missing_lang="JSON file parsing"; fi
     if [[ ! `command -v curl` ]]; then missing_util_name="curl"; missing_util_package="curl"; missing_lang="download"; fi
