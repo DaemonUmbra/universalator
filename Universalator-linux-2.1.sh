@@ -560,12 +560,14 @@ dnscheck () {
 }
 # function to ping the website of whichever modloader is passed to the function as a parameter
 pingthing () {
-    # Sets the website to be pinged depending on the argument sent to the function
-    [[ "${1}" == "FORGE" ]] && pingurl="maven.minecraftforge.net"; [[ "${1}" == "NEOFORGE" ]] && pingurl="maven.neoforged.net"; [[ "${1}" == "FABRIC" ]] && pingurl="maven.fabricmc.net"; [[ "${1}" == "QUILT" ]] && pingurl="maven.quiltmc.org"; [[ "${1}" == "VANILLA" ]] && pingurl="piston-meta.mojang.com";
-    # Pings once and if the ping fails inform the user of the news, if success sets a variable that can be checked
-    ping -c 1 $mavenurl >/dev/null 2>&1 && pingresponse=g || ( pingresponse=b; clear; printf "\n\n\n   Uh-oh, a ping to the website for ${1} failed to get a response.\n   Website - $pingurl\n\n"; read -n1 -r -p "Press any key to try a longer ping test..." )
-    # Pings five times if the first attmept above failed.  Sets the pingresponse variable accordingly.
-    if [[ "$pingresponse" == "b" ]]; then ping -c 5 $mavenurl >/dev/null 2>&1 && pingresponse=g || pingresponse=b; fi
+    # Sets the website to be pinged depending on the argument sent to the function.  If VANILLA just set pingresponse to good, because as of May 2024 apparently Mojang has blocked pinging their file servers.
+    [[ "${1}" == "FORGE" ]] && pingurl="maven.minecraftforge.net"; [[ "${1}" == "NEOFORGE" ]] && pingurl="maven.neoforged.net"; [[ "${1}" == "FABRIC" ]] && pingurl="maven.fabricmc.net"; [[ "${1}" == "QUILT" ]] && pingurl="maven.quiltmc.org"; [[ "${1}" == "VANILLA" ]] && pingresponse=g;
+    if [[ "${1}" != "VANILLA" ]]; then
+        # Pings once and if the ping fails inform the user of the news, if success sets a variable that can be checked
+        ping -c 1 $mavenurl >/dev/null 2>&1 && pingresponse=g || ( pingresponse=b; clear; printf "\n\n\n   Uh-oh, a ping to the website for ${1} failed to get a response.\n   Website - $pingurl\n\n"; read -n1 -r -p "Press any key to try a longer ping test..." )
+        # Pings five times if the first attmept above failed.  Sets the pingresponse variable accordingly.
+        if [[ "$pingresponse" == "b" ]]; then ping -c 5 $mavenurl >/dev/null 2>&1 && pingresponse=g || pingresponse=b; fi
+    fi
 }
 # function to get maven metadata file and check the age of any found existing for refreshing
 checkmavenfile () {
@@ -1367,4 +1369,3 @@ done
 [[ -z "$param1" ]] && { printf "$norm"; clear; }
 exit 0
 # EXIT - DO NOT CHANGE ABOVE - NEEDED TO CLOSE SCRIPT
-
