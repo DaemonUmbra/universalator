@@ -87,7 +87,7 @@ fi
     if [[ ! `command -v curl` ]]; then missing_util_name="curl"; missing_util_package="curl"; missing_lang="download"; fi
     if [[ ! `command -v nslookup` ]]; then missing_util_name="nslookup"; missing_util_package="dnsutils"; missing_lang="network checking"; fi
 
-    if [[ "$missing_util" != "u" ]]; then
+    if [[ "$missing_util_name" != "u" ]]; then
         printf "\n   $lty Uh oh - it appears that '$missing_util_name', is not installed on your operating system. $norm\n   $lty This script for Linux/OSX requires that '$missing_util_name', a $missing_lang utility program, be installed. $norm\n\n"
         [[ "$distro_like" == "debian" ]] && printf "   $lty Your OS appears to be a 'debian' based linux distribution. $norm \n   $lty If you have the APT package manager you should be able to install with the following commands: $norm\n\n       $lty sudo apt update $norm \n       $lty sudo apt upgrade $norm \n       $lty sudo apt install $missing_util_package $norm \n"
         [[ "$distro_like" == "arch" ]] && printf "   $lty Your OS appears to be an 'arch' based linux distribution. $norm \n   $lty If you have the 'pacman' package manager you should be able to install with the following commands: $norm\n\n       $lty sudo pacman -Sy $norm \n       $lty sudo pacman -S $missing_util_package $norm \n"
