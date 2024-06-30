@@ -713,8 +713,11 @@ scanclients () {
         done
 
         # fabric and quilt genenerates arrays of client mod ids and files
+        # makes an exception if modmenu is the mod being considered
         for ith in "${!modsarray[@]}"; do
-            [[ "${fabricallenvirons[ith]}" == "client" ]] && [[ ! `echo "${fabricalldeps[ith]}" | fgrep -q -w "${fabricallids[ith]}"` ]] && clientmodids+=( "${fabricallids[ith]}" ) && clientmodfiles+=( "${modsarray[ith]}" )
+            if [[ "${fabricallids[ith]}" != "modmenu" ]]; then
+                [[ "${fabricallenvirons[ith]}" == "client" ]] && [[ ! `echo "${fabricalldeps[ith]}" | fgrep -q -w "${fabricallids[ith]}"` ]] && clientmodids+=( "${fabricallids[ith]}" ) && clientmodfiles+=( "${modsarray[ith]}" )
+            fi
         done
     fi
 
@@ -1329,6 +1332,7 @@ launch () {
 
             # The rules for the below could be arranged differently next to the launch commands, but this way is funnier.
             [[ "$mcmajor" -ge "17" ]] && [[ "$mcmajor" -le "19" ]] && LAUNCHFORGE="NEWOLD"
+            [[ "$mcmajor" == "20" ]] && [[ "$mcminor" -le "3" ]] && LAUNCHFORGE="NEWOLD"
             [[ "$mcmajor" == "20" ]] && [[ "$mcminor" -ge "4" ]] && LAUNCHFORGE="NEWNEW"
             [[ "$mcmajor" -ge "21" ]] && LAUNCHFORGE="NEWNEW"
 
