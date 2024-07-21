@@ -419,7 +419,7 @@ getnewestversion () {
     getmajorminor
 
     if [[ -f "./univ-utils/$mavenfile" ]]; then
-        newestmodloader="u"
+        newestmodloader="mcmajor-[$mcmajor] / mcminor-[$mcminor]"
 
         # If Forge or Neoforge - pipes the output of maven-metadata file to a fgrep which filters based on the Minecraft version, then a while loop reads off the info and a variable sets the MODLOADERVERSION.
         # Forge's metadata file puts the newest versions first on the list, so at the first while loop 'break' is done to only iterate for the first entry grep found.  Neoforge 1.20.1 metadata file puts the newest version last, so loops through the entire filted list and last recorded is newest.
@@ -446,7 +446,12 @@ setjava () {
         [[ $mcmajor -eq 16 ]] && [[ $mcminor -le 4 ]] && printf "   THE ONLY OPTION FOR MINECRAFT $MINECRAFT BASED LAUNCHING IS $green 8 $blue "
         [[ $mcmajor -eq 16 ]] && [[ $mcminor -eq 5 ]] && printf "   THE OPTIONS FOR MINECRAFT $MINECRAFT BASED LAUNCHING ARE $green 8 $blue AND $green 11 $blue "
         [[ $mcmajor == 17 ]] && printf "   THE ONLY OPTION FOR MINECRAFT $MINECRAFT BASED LAUNCHING IS $green 16 $blue "
-        [[ $mcmajor -ge 18 ]] && printf "   THE OPTIONS FOR MINECRAFT $MINECRAFT BASED LAUNCHING ARE $green 17 $blue AND $green 21 $blue "
+        [[ $mcmajor -ge 18 ]] && [[ $mcmajor -le 19 ]] && printf "   THE OPTIONS FOR MINECRAFT $MINECRAFT BASED LAUNCHING ARE $green 17 $blue AND $green 21 $blue "
+        [[ $mcmajor == 20 ]] && [[ $mcminor -le 5 ]] && printf "   THE OPTIONS FOR MINECRAFT $MINECRAFT BASED LAUNCHING ARE $green 17 $blue AND $green 21 $blue "
+        [[ $mcmajor == 20 ]] && [[ $mcminor -ge 6 ]] && printf "   THE ONLY OPTION FOR MINECRAFT $MINECRAFT BASED LAUNCHING IS $green 21 $blue "
+        [[ $mcmajor -ge 21 ]] && printf "   THE ONLY OPTION FOR MINECRAFT $MINECRAFT BASED LAUNCHING IS $green 21 $blue "
+
+
         printf "\n\n\n   * USING THE NEWER VERSION OPTION IF GIVEN A CHOICE $green MAY $blue OR $red MAY NOT $blue WORK DEPENDING ON MODS BEING LOADED\n   * IF A SERVER FAILS TO LAUNCH, YOU SHOULD CHANGE BACK TO THE LOWER DEFAULT VERSION!\n\n\n  $yellow ENTER JAVA VERSION TO LAUNCH THE SERVER WITH $blue \n\n"
         printf "  $green"; read -p " Entry : $blue " tempjava; printf "$blue"
 
@@ -454,7 +459,9 @@ setjava () {
             (8) [[ $mcmajor -le 16 ]] && JAVAVERSION=$tempjava && let "setgoodjava+=1";;
             (11) ( [[ $mcmajor -eq 16 ]] && [[ $mcminor -eq 5 ]] ) && JAVAVERSION=$tempjava && let "setgoodjava+=1";;
             (16) [[ $mcmajor -eq 17 ]] && JAVAVERSION=$tempjava && let "setgoodjava+=1";;
-            (17 | 21) [[ $mcmajor -ge 18 ]] && JAVAVERSION=$tempjava && let "setgoodjava+=1";;
+            (17)  ( [[ $mcmajor == 18 ]] || [[ $mcmajor == 19 ]] || ( [[ $mcmajor == 20 ]] && [[ $mcminor -le 4 ]] ) ) && JAVAVERSION=$tempjava && let "setgoodjava+=1";;
+            (21)  [[ $mcmajor -ge 18 ]] && JAVAVERSION=$tempjava && let "setgoodjava+=1";;
+
             (*) printf "\nInvalid entry - enter a valid version option\n"; read -n1 -r -p "Press any key to continue...";;
         esac
     done
@@ -525,10 +532,12 @@ setmaxram () {
 # function to parse the major and minor Minecraft version numbers
 getmajorminor () {
     # Sets the major and minor Minecraft version to integer variables - if it has no minor version then mcminor is set to 0.
+
     while IFS='.' read -r _ maj min; do
         mcmajor=$maj
         mcminor=$min
     done <<<$MINECRAFT
+    [[ [${mcminor}] == [] ]] && mcminor=0
 }
 # function to check the DNS currently used resolving the IP addresses of whichever modloader's URL is, also always check Mojang's URLs
 dnscheck () {
