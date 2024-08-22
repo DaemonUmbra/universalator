@@ -419,7 +419,7 @@ getnewestversion () {
     getmajorminor
 
     if [[ -f "./univ-utils/$mavenfile" ]]; then
-        newestmodloader="mcmajor-[$mcmajor] / mcminor-[$mcminor]"
+        newestmodloader="unknown"
 
         # If Forge or Neoforge - pipes the output of maven-metadata file to a fgrep which filters based on the Minecraft version, then a while loop reads off the info and a variable sets the MODLOADERVERSION.
         # Forge's metadata file puts the newest versions first on the list, so at the first while loop 'break' is done to only iterate for the first entry grep found.  Neoforge 1.20.1 metadata file puts the newest version last, so loops through the entire filted list and last recorded is newest.
@@ -506,11 +506,11 @@ setmaxram () {
         clear
         printf "\n\n"
         [[ -v ramavail ]] && [[ $ramtot != 0 ]] && [[ $ramavail != 0 ]] && ( printf "    Total Total Memory/RAM     $blue   = $yellow $ramtot Gigabytes (GB) $blue \n    Current Available Memory/RAM $blue = $yellow $ramavail Gigabytes (GB) $blue \n\n     * Current stats for the computer / VM this is running with.\n" )
-        printf "\n\n\n\n\n   $yellow ENTER MAXIMUM RAM / MEMORY THAT THE SERVER WILL RUN - IN GIGABYTES (GB) $blue\n\n    BE SURE TO USE A VALUE THAT LEAVES AT LEAST SEVERAL GB AVAILABLE IF ALL USED\n    (Refer to the total and available RAM found above)\n\n    TYPICAL VALUES FOR MODDED MINECRAFT SERVERS ARE BETWEEN 4 AND 10\n\n    ONLY ENTER A WHOLE NUMBER - $red MUST NOT $blue INCLUDE ANY LETTERS.\n    $green Example - 6 $blue\n\n   $yellow ENTER MAXIMUM RAM / MEMORY THAT THE SERVER WILL RUN - IN GIGABYTES (GB) $blue\n\n"
+        printf "\n\n\n\n\n   $yellow ENTER MAXIMUM RAM / MEMORY THAT THE SERVER WILL RUN - IN GIGABYTES (GB) $blue\n\n    BE SURE TO USE A VALUE THAT LEAVES AT LEAST SEVERAL GB AVAILABLE IF ALL USED\n    (Refer to the total and available RAM found above if displayed)\n\n    TYPICAL VALUES FOR MODDED MINECRAFT SERVERS ARE BETWEEN 4 AND 10\n\n    ONLY ENTER A WHOLE NUMBER - $red MUST NOT $blue INCLUDE ANY LETTERS.\n    $green Example - 6 $blue\n\n   $yellow ENTER MAXIMUM RAM / MEMORY THAT THE SERVER WILL RUN - IN GIGABYTES (GB) $blue\n\n"
         printf "  $green"; read -p " Entry : $blue " ramentry; printf "$blue"
 
         re='^[0-9]+$'
-        if [[ -v ramavail ]]; then
+        if [[ -v ramtot ]] && [[ -v ramavail ]] && [[ "$ostype" != "mac" ]]; then
             # If ramavail was detected then compare what was entered and the available and decide if greater than 1gb remains after full allocation.
             # Also check if the entry was a whole number or not.
             if [[ $ramentry =~ $re ]]; then declare -i ramentry=$ramentry 2>/dev/null; let "ramleft = $ramavail - $ramentry"; else  ramresult=1; fi
