@@ -1055,7 +1055,7 @@ PUSHD "%HERE%\univ-utils\java"
 ECHO: & ECHO   Downloading Java !JAVAVERSION! newest version from Adoptium
 
 :: Sets a variable for the URL string to use to use the Adoptium URL Api - it just makes the actual command later easier deal with.
-SET "ADOPTIUMDL=https://api.adoptium.net/v3/assets/feature_releases/8/ga?architecture=x64&heap_size=normal&image_type=jre&jvm_impl=hotspot&os=windows&page_size=1&project=jdk&sort_method=DEFAULT&sort_order=DESC&vendor=eclipse"
+SET "ADOPTIUMDL=https://api.adoptium.net/v3/assets/feature_releases/!JAVAVERSION!/ga?architecture=x64&heap_size=normal&image_type=!IMAGETYPE!&jvm_impl=hotspot&os=windows&page_size=1&project=jdk&sort_method=DEFAULT&sort_order=DESC&vendor=eclipse"
 ver >nul
 :: Gets the download URL for the newest release binaries ZIP using the URL Api and then in the same powershell command downloads it.  This avoids having to manipulate URL links with % signs in them in the CMD environment which is tricky.
 powershell -Command "$data=(((New-Object System.Net.WebClient).DownloadString('!ADOPTIUMDL!') | Out-String | ConvertFrom-Json)); (New-Object Net.WebClient).DownloadFile($data.binaries.package.link, '%HEREPOWERSHELL%\univ-utils\java\javabinaries.zip')"
@@ -1085,6 +1085,7 @@ IF !JAVACHECKSUM!==!FILECHECKSUM! (
   %DELAY%
 )
 IF !JAVACHECKSUM! NEQ !FILECHECKSUM! (
+
   CLS
   ECHO: & ECHO:
   ECHO: &  ECHO   %yellow% THE JAVA INSTALLATION FILE DID NOT DOWNLOAD CORRECTLY - PESS ANY KEY TO TRY AGAIN %blue% & ECHO:
