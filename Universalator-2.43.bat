@@ -914,6 +914,8 @@ EXIT /B
 :java_checks
 CLS
 
+IF NOT EXIST "%HERE%\univ-utils\java" MD "%HERE%\univ-utils\java"
+
 :: After Java 8 they started using a standardized naming scheme for following versions.  JDK refers to the project, not particular versions being JRE releases.
 IF !JAVAVERSION!==8 ( SET "FINDFOLDER=jdk8u" ) ELSE ( SET "FINDFOLDER=jdk-!JAVAVERSION!" )
 
@@ -931,6 +933,7 @@ IF /I !OVERRIDE!==J (
 :: Detects JVMs installed to the system C:\Program Folders\ location.  If the folder is newer than 9 months considers it as long as a java.exe exists.
 :: Looks inside the 'release' file for later information display.  If all found folders are old, or there are no found folders, script continues on.
 ECHO: & ECHO   Checking for system installed Java !JAVAVERSION! less than !MONTHS_OLD! months old... .. .
+
 
 FOR /F "delims=" %%A IN ('powershell -Command "$ver='!JAVAVERSION!'; $MonthsAgo = (Get-Date).AddMonths(-!MONTHS_OLD!); $paths = @('C:\Program Files', 'C:\Program Files\Java', 'C:\Program Files\Eclipse Adoptium', 'C:\Program Files\Eclipse Foundation', 'C:\Program Files\Amazon Corretto', 'C:\Program Files\Zulu'); foreach ($p in $paths) { if (Test-Path $p) { Get-ChildItem $p -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^(jdk-?'+$ver+'|temurin-?'+$ver+'|jre-?'+$ver+'([\.0-9]+[-]?)*|zulu-?'+$ver+'|jdk1\.'+$ver+'|java-?'+$ver+'|openjdk-?'+$ver+')([-_].*)*$' } | ForEach-Object { $ageTag = if ($MonthsAgo -gt $_.CreationTime) { 'old#' } else { 'new#' }; $ageTag + $_.FullName } } }"') DO (
 
@@ -960,46 +963,50 @@ FOR /F "delims=" %%A IN ('powershell -Command "$ver='!JAVAVERSION!'; $MonthsAgo 
         SET "JAVANUM=!IMPL! / !JVER!"
         SET "JAVANUM=!JAVANUM:C:\Program Files\=!"
       )
-      ECHO: & ECHO   Found existing system installed Java for the same Major version - !JAVAVERSION!
-      ECHO: & ECHO   The found Java is new enough that Univ will use it... .. .
-      ping -n 2 127.0.0.1 >nul
+      ECHO: & ECHO      - Found existing system installed Java for the same Major version - !JAVAVERSION!
+      ECHO: & ECHO      - The found Java is new enough that Univ will use it... .. .
+      %DELAY%
 
       GOTO :javafileisset
     )
+    ECHO: & ECHO      - Did not find a system installed Java version newer than !MONTHS_OLD! months old.
+    %DELAY%
   )
 )
 :skipsystemjavacheck
 
-IF NOT EXIST "%HERE%\univ-utils\java" MD "%HERE%\univ-utils\java"
-ver >nul
-ECHO: & ECHO:
+ECHO: & ECHO   Searching for Universalator installed Java from Adoptium ... ..
+%DELAY%
+SET A_MONTHS=6
 
 FOR /F "delims=" %%A IN ('DIR /B univ-utils\java') DO (
   ECHO "%%A" | FINDSTR "!FINDFOLDER!" >nul
   IF !ERRORLEVEL!==0 (
     SET "JAVAFOLDER=%%A"
-    ECHO   Found existing Java !JAVAVERSION! folder - %%A & ECHO:
-    ping -n 1 127.0.0.1 >nul
-    :: Runs a FOR loop with a powershell command to check the age of the found java folder.  If it's older than 3 months result is 'True'.  If it's newer than 3 months result is 'False'.
-    FOR /F %%G IN ('powershell -Command "Test-Path '%HEREPOWERSHELL%\univ-utils\java\%%A' -OlderThan (Get-Date).AddMonths(-2.5)"') DO (
+    ECHO: & ECHO      - Found existing Java !JAVAVERSION! folder - %%A
+    %DELAY%
+    :: Runs a FOR loop with a powershell command to check the age of the found java folder.  If it's older than A_MONTHS months result is 'True'.  If it's newer than 3 months result is 'False'.
+    REM FOR /F %%G IN ('powershell -Command "Test-Path '%HEREPOWERSHELL%\univ-utils\java\%%A' -OlderThan (Get-Date).AddMonths(-2.5)"') DO (
+    FOR /F %%G IN ('powershell -Command "$path='%HEREPOWERSHELL%\univ-utils\java\%%A\bin\java.exe'; (Test-Path $path) -and ((Get-Item $path).LastWriteTime -lt (Get-Date).AddMonths(-!A_MONTHS!))"') DO (
       :: If False then that means the folder is newer than 3 months - go ahead and use that folder for java, then move on!
       IF %%G==False (
+        ECHO: & ECHO      - Java folder is Newer than !A_MONTHS! months - using this version^^!
+        %DELAY%
         SET "JAVAFILE=%HERE%\univ-utils\java\%%A\bin\java.exe"
         GOTO :javafileisset
       )
-      :: If True that means that it is older than 2.5 months old and is marked as OLD and folder value stored for testing vs the current published release later.
+      :: If True that means that it is older than the months old and is marked as OLD and folder value stored for testing vs the current published release later.
       IF %%G==True (
-        ECHO   Java folder is older than 3 months - checking for newer available versions for Java !JAVAVERSION! & ECHO:
-        ping -n 1 127.0.0.1 >nul
+        ECHO: & ECHO      - Java folder is older than !A_MONTHS! months - checking for newer available versions for Java !JAVAVERSION!
+        %DELAY%
         SET FOUNDJAVA=OLD
-
         GOTO :javaold
       )
     )
   )
 )
 :: If script has not skipped ahead by now then a Java folder was not found for the major Java version searched for.
-ECHO   Universalator Java folder not found - Getting Java - !JAVAVERSION! - from Adoptium. & ECHO:
+ECHO: & ECHO      - Universalator Java folder not found - Getting Java - !JAVAVERSION! - from Adoptium.
 %DELAY%
 
 :javaold
@@ -1029,13 +1036,14 @@ IF !FOUNDJAVA!==OLD (
   ECHO !JAVAFOLDER! | FINDSTR "!NEWESTJAVA!" >nul
   :: If test passes then java folder version is current - use it and move on!
   IF !ERRORLEVEL!==0 (
-    ECHO   Java folder !JAVAFOLDER! is in fact the newest version available - using it for Java !JAVAVERSION! & ECHO:
+    ECHO: & ECHO      - Java folder !JAVAFOLDER! is in fact the newest version available - using it for Java !JAVAVERSION!
     %DELAY%
     SET "JAVAFILE=%HERE%\univ-utils\java\!JAVAFOLDER!\bin\java.exe"
     GOTO :javafileisset
   ) ELSE (
     :: Removes the old java folder if the test failed and the newest release was not found in the folder name.
-    ECHO   Java folder !JAVAFOLDER! is not the newest version available.  & ECHO   Replacing with the newest Java !JAVAVERSION! version from Adoptium^^! & ECHO:
+    ECHO: & ECHO      - Java folder !JAVAFOLDER! is not the newest version available.  & ECHO      - Replacing with the newest Java !JAVAVERSION! version from Adoptium^^!
+    %DELAY%
     RD /s /q "%HERE%\univ-utils\java\!JAVAFOLDER!" >nul
   ) 
 )
@@ -1044,10 +1052,10 @@ IF !FOUNDJAVA!==OLD (
 PUSHD "%HERE%\univ-utils\java"
 
 :javaretry
-ECHO   Downloading Java !JAVAVERSION! newest version from Adoptium & ECHO:
+ECHO: & ECHO   Downloading Java !JAVAVERSION! newest version from Adoptium
 
 :: Sets a variable for the URL string to use to use the Adoptium URL Api - it just makes the actual command later easier deal with.
-SET "ADOPTIUMDL=https://api.adoptium.net/v3/assets/feature_releases/!JAVAVERSION!/ga?architecture=x64&heap_size=normal&image_type=!IMAGETYPE!&jvm_impl=hotspot&os=windows&page_size=1&project=jdk&sort_method=DEFAULT&sort_order=DESC&vendor=eclipse"
+SET "ADOPTIUMDL=https://api.adoptium.net/v3/assets/feature_releases/8/ga?architecture=x64&heap_size=normal&image_type=jre&jvm_impl=hotspot&os=windows&page_size=1&project=jdk&sort_method=DEFAULT&sort_order=DESC&vendor=eclipse"
 ver >nul
 :: Gets the download URL for the newest release binaries ZIP using the URL Api and then in the same powershell command downloads it.  This avoids having to manipulate URL links with % signs in them in the CMD environment which is tricky.
 powershell -Command "$data=(((New-Object System.Net.WebClient).DownloadString('!ADOPTIUMDL!') | Out-String | ConvertFrom-Json)); (New-Object Net.WebClient).DownloadFile($data.binaries.package.link, '%HEREPOWERSHELL%\univ-utils\java\javabinaries.zip')"
@@ -1073,13 +1081,13 @@ SET FILECHECKSUM=!OUT[1]!
 IF !JAVACHECKSUM!==!FILECHECKSUM! (
   tar -xf javabinaries.zip
   DEL javabinaries.zip
-  ECHO   The downloaded Java binary and hashfile value match - file downloaded correctly is valid & ECHO:
+  ECHO: & ECHO   The downloaded Java binary and hashfile value match - file downloaded correctly is valid
   %DELAY%
 )
 IF !JAVACHECKSUM! NEQ !FILECHECKSUM! (
   CLS
   ECHO: & ECHO:
-  ECHO   %yellow% THE JAVA INSTALLATION FILE DID NOT DOWNLOAD CORRECTLY - PESS ANY KEY TO TRY AGAIN %blue% & ECHO: & ECHO:
+  ECHO: &  ECHO   %yellow% THE JAVA INSTALLATION FILE DID NOT DOWNLOAD CORRECTLY - PESS ANY KEY TO TRY AGAIN %blue% & ECHO:
   PAUSE
   DEL javabinaries.zip
 )
@@ -1269,7 +1277,7 @@ IF /I "!MODLOADER!"=="FABRIC" (
 :: Check if already installed - meaning that both the JAR file and the libraries folder are present
 IF EXIST !LOADERTYPE!-server-launch-!MINECRAFT!-!MODLOADERVERSION!.jar (
     IF EXIST "!FILEPATH!\!LOADERTYPE!-loader\!MODLOADERVERSION!\!LOADERTYPE!-loader-!MODLOADERVERSION!.jar" (
-        GOTO :foundfabricquilt
+      GOTO :foundfabricquilt
     )
 )
 
@@ -1344,6 +1352,9 @@ IF NOT EXIST !LOADERTYPE!-server-launch-!MINECRAFT!-!MODLOADERVERSION!.jar (
 )
 
 :foundfabricquilt
+ECHO: & ECHO   Detected Installed !MODLOADER!-!MODLOADERVERSION! for !MINECRAFT!. Moving on... & ECHO:
+%DELAY%
+
 EXIT /B
 :: END FUNCTION TO CHECK FOR AND INSTALL FABRIC OR QUILT
 
@@ -1355,7 +1366,7 @@ IF DEFINED UPNPGETMCJAR IF !UPNPGETMCJAR!==Y GOTO :upnpgetjar
 
 :: Downloads the Minecraft server JAR if version is 1.16 and older.  Some old Forge installer files point to dead URL links for this file.  This gets ahead of that and gets the vanilla server JAR first.
 IF EXIST minecraft_server.!MINECRAFT!.jar (
-  ECHO   Minecraft !MINECRAFT! server JAR found. & ECHO:
+  ECHO: & ECHO   Minecraft !MINECRAFT! server JAR found. & ECHO:
   %DELAY%
   GOTO :skipvanillainstall
 )
@@ -3103,6 +3114,12 @@ IF DEFINED IS_EXCL_FOUND IF "%CD%"=="!IS_EXCL_FOUND!" (
     setlocal enabledelayedexpansion
 )
 
+ECHO !HERE!| FINDSTR "[ ]" >nul && (
+    ECHO: & ECHO: & ECHO: & ECHO   %yellow% PROBLEM DETECTED %blue% & ECHO: & ECHO   %red% !HERE! %blue% & ECHO: & ECHO   THE ABOVE FOLDER PATH CONTAINS CHARACTERS LIKE - %red% ^[ ^] %blue% & ECHO:
+    ECHO   INCLUDING THESE CHARACTERS IN FOLDER NAMES CAN BREAK THE FUNCTIONS IN THE PROGRAM. & ECHO   CHANGE FOLDER NAMES TO REMOVE THESE CHARACTERS^^! & ECHO: & ECHO: & ECHO: & ECHO:
+    PAUSE & EXIT
+)
+
 :: Checks to see if there are environmental variables trying to set global ram allocation values!  This is a real thing!
 FOR %%X IN (_JAVA_OPTIONS JDK_JAVA_OPTIONS JAVA_TOOL_OPTIONS) DO (
   REM Doing this with ver and silencing the output always resets the current errorlevel to 0
@@ -3332,6 +3349,7 @@ IF EXIST server.properties FOR /F "tokens=1,2 delims==" %%A IN ('type server.pro
   IF "%%A"=="allow-flight" IF "%%B"=="false" ( CALL :serverpropsedit allow-flight true ) 
   IF "%%A"=="online-mode" IF "%%B"=="false" ( CALL :serverpropsedit online-mode true )
   IF "%%A"=="server-ip" SET "IPLINE=%%A=%%B"
+   IF "%%A"=="difficulty" ( ECHO %%B|FINDSTR "peaceful easy normal hard" || ( CALL :serverpropsedit difficulty normal ))
 )
 
 :: If it was found that information was entered after server-ip= checks with user if it's ok to blank the value out or leave it alone.
