@@ -785,6 +785,9 @@ IF "!MAXRAMGIGS:~-1!"==" " CALL :trim "!MAXRAMGIGS!" MAXRAMGIGS
 
 :: Checks if there are any decimal points in the entry
 IF "!MAXRAMGIGS!" NEQ "!MAXRAMGIGS:.=!" GOTO :badramentry
+:: Trims out any - or + characters
+SET "MAXRAMGIGS=!MAXRAMGIGS:-=!"
+SET "MAXRAMGIGS=!MAXRAMGIGS:+=!"
 
 :: Tests to see if the entered value is an integer or not.  If it is a string and not an integer (letters etc) - trying to set TEST1 as an integer with SET /a will fail.
 SET TEST1=w
@@ -964,7 +967,7 @@ FOR /F "delims=" %%A IN ('powershell -Command "$ver='!JAVAVERSION!'; $MonthsAgo 
         SET "JAVANUM=!JAVANUM:C:\Program Files\=!"
       )
       ECHO: & ECHO      - Found existing system installed Java for the same Major version - !JAVAVERSION!
-      ECHO: & ECHO      - The found Java is new enough that Univ will use it... .. .
+      ECHO: & ECHO      - The found Java is new enough that Univ will use it... .. . & ECHO:
       %DELAY%
 
       GOTO :javafileisset
@@ -1022,7 +1025,7 @@ IF !JAVAVERSION! NEQ 16 SET "IMAGETYPE=jre"
 IF !FOUNDJAVA!==OLD (
   REM Uses the Adoptium URL Api to return the JSON for the parameters specified, and then the FOR loop pulls the last value printed which is that value in the JSON variable that got made.
   REM Java 8 used a bit of a different format for it's version information so a different value is used form the JSON.
-
+  
   IF !JAVAVERSION!==8 FOR /F %%A IN ('powershell -Command "$data=(((New-Object System.Net.WebClient).DownloadString('https://api.adoptium.net/v3/assets/feature_releases/8/ga?architecture=x64&heap_size=normal&image_type=jre&jvm_impl=hotspot&os=windows&page_size=1&project=jdk&sort_method=DEFAULT&sort_order=DESC&vendor=eclipse') | Out-String | ConvertFrom-Json)); $data.release_name"') DO SET NEWESTJAVA=%%A
   IF !JAVAVERSION! NEQ 8 FOR /F %%A IN ('powershell -Command "$data=(((New-Object System.Net.WebClient).DownloadString('https://api.adoptium.net/v3/assets/feature_releases/!JAVAVERSION!/ga?architecture=x64&heap_size=normal&image_type=!IMAGETYPE!&jvm_impl=hotspot&os=windows&page_size=1&project=jdk&sort_method=DEFAULT&sort_order=DESC&vendor=eclipse') | Out-String | ConvertFrom-Json)); $data.version_data.openjdk_version"') DO SET NEWESTJAVA=%%A
 
@@ -1085,7 +1088,6 @@ IF !JAVACHECKSUM!==!FILECHECKSUM! (
   %DELAY%
 )
 IF !JAVACHECKSUM! NEQ !FILECHECKSUM! (
-
   CLS
   ECHO: & ECHO:
   ECHO: &  ECHO   %yellow% THE JAVA INSTALLATION FILE DID NOT DOWNLOAD CORRECTLY - PESS ANY KEY TO TRY AGAIN %blue% & ECHO:
@@ -3624,6 +3626,7 @@ DIR /B "mods\*.jar" 2>nul | FINDSTR "." >nul && (
     ECHO   %%A
   ) ELSE IF /I !MAINMENU!==SMOD FOR /F "delims=" %%A IN ('DIR /B "mods\*.jar" ^| SORT /R') DO ( ECHO   %%A )
   ECHO: & ECHO:
+  DIR /B "mods\*.jar">modslist.txt
   PAUSE
 ) || (
   ECHO   %yellow% No mod JAR files were found in the 'mods' folder^^! %blue% & PAUSE
@@ -3709,6 +3712,7 @@ GOTO :l_replaceloop
 :univ_settings_edit
 
 SET /a idx=0
+SET "VALUE=%~2"
 FOR /F "delims=" %%A IN ('type settings-universalator.txt') DO (
   REM Deletes the existing settings file, apparently the FOR loop captures the entire file contents on execution,
   REM so we can do this and then write back a new one on the fly.  Only does this DEL on the first loop iteration.
@@ -3718,7 +3722,7 @@ FOR /F "delims=" %%A IN ('type settings-universalator.txt') DO (
   )
   FOR /F "tokens=1,2 delims==" %%B IN ("%%A") DO (
     IF "%%B" NEQ "SET %~1" ECHO %%A>>settings-universalator.txt
-    IF "%%B"=="SET %~1" ECHO %%B=%~2>>settings-universalator.txt
+    IF "%%B"=="SET %~1" ECHO %%B=!VALUE!>>settings-universalator.txt
   )
 )
 EXIT /B
