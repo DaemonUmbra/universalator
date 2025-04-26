@@ -379,7 +379,7 @@ IF !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 (
   SET "METADATAURL=https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml"
 )
 
-IF EXIST "%HERE%\univ-utils\!METADATAFILE!" FOR /F %%G IN ('powershell -Command "Test-Path '%HEREPOWERSHELL%\univ-utils\!METADATAFILE!' -OlderThan (Get-Date).AddHours(-6)"') DO SET XMLAGE=%%G
+IF EXIST "%HERE%\univ-utils\!METADATAFILE!" FOR /F %%G IN ('powershell -Command "Test-Path '!HEREPOWERSHELL!\univ-utils\!METADATAFILE!' -OlderThan (Get-Date).AddHours(-6)"') DO SET XMLAGE=%%G
 
 :: If XMLAGE is True then a new maven metadata file is obtained.  Any existing is silently deleted.  If the maven is unreachable by ping then no file delete and download is done, so any existing old file is preserved.
 IF /I !XMLAGE!==True (
@@ -471,7 +471,7 @@ EXIT /B
 :: FUNCTION TO ENTER THE FABRIC OR QUILT MODLOADER VERSION
 :enter_fabric_quilt_version
 :: Gets the newest release version available from the current maven mavendata file.
-FOR /F %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '%HEREPOWERSHELL%\univ-utils\!METADATAFILE!'); $data.metadata.versioning.release"') DO SET FQLOADER=%%A
+FOR /F %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\!METADATAFILE!'); $data.metadata.versioning.release"') DO SET FQLOADER=%%A
 
 :: Asks user choose between saying Y for the newest detected release version or if N enter a custom version number.
 :redofabricquiltloader
@@ -516,7 +516,7 @@ IF /I !ASKFQLOADER!==Y (
 IF "!MODLOADERVERSION:~-1!"==" " CALL :trim "!MODLOADERVERSION!" MODLOADERVERSION
 
 :: If custom Loader version was entered check on the maven XML file that it is a valid version, if it is found then exit the function.
-FOR /F %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '%HEREPOWERSHELL%\univ-utils\!METADATAFILE!'); $data.metadata.versioning.versions.version"') DO (
+FOR /F %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\!METADATAFILE!'); $data.metadata.versioning.versions.version"') DO (
   IF %%A==!MODLOADERVERSION! ( EXIT /B )
 )
 
@@ -543,7 +543,7 @@ SET MAVENISSUE=IDK
 IF /I !MODLOADER!==FORGE (
   SET /a idx=0
   SET "ARRAY[!idx!]="
-  FOR /F "tokens=1,2 delims=-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '%HEREPOWERSHELL%\univ-utils\maven-forge-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
+  FOR /F "tokens=1,2 delims=-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\maven-forge-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
     IF %%A==!MINECRAFT! (
         SET ARRAY[!idx!]=%%B
         SET /a idx+=1
@@ -557,13 +557,13 @@ REM If Neoforge get newest version available of the selected minecraft version.
 IF /I !MODLOADER!==NEOFORGE (
   SET "NEWESTNEOFORGE="
   REM This is the initial versions maven that Neoforge used - only for MC 1.20.1
-  IF !MINECRAFT!==1.20.1 FOR /F "tokens=1,2 delims=-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '%HEREPOWERSHELL%\univ-utils\maven-neoforge-1.20.1-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
+  IF !MINECRAFT!==1.20.1 FOR /F "tokens=1,2 delims=-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\maven-neoforge-1.20.1-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
     IF %%A==!MINECRAFT! (
         SET NEWESTNEOFORGE=%%B
     )
   )
   REM Neoforge changed how they version number their installer files starting with MC 1.20.2 - this is the new system.
-  IF !MINECRAFT! NEQ 1.20.1 FOR /F "tokens=1-4 delims=.-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '%HEREPOWERSHELL%\univ-utils\maven-neoforge-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
+  IF !MINECRAFT! NEQ 1.20.1 FOR /F "tokens=1-4 delims=.-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\maven-neoforge-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
     REM If the current Minecraft version contains a minor version
     IF %%A==!MCMAJOR! IF %%B==!MCMINOR! (
         SET NEWESTNEOFORGE=%%A.%%B.%%C
@@ -579,6 +579,7 @@ IF /I !MODLOADER!==NEOFORGE (
 IF !MAVENISSUE!==Y (
   CLS
   ECHO: & ECHO: & ECHO          %red%   OOPS   %blue% & ECHO: & ECHO:
+  ECHO   !HEREPOWERSHELL!
   ECHO   %yellow% NO !MODLOADER! VERSIONS WERE FOUND IN THE MAVEN ^(LIST^) FILE FOR THIS MINECRAFT VERSION - !MINECRAFT! %blue% & ECHO:
   ECHO      OR - OR - OR & ECHO: & ECHO   %yellow% OR ^(PROBABLY NOT^) THE MAVEN ^(LIST^) FILE IS SOMEHOW INCOMPLETE / CORRUPTED %blue% & ECHO: & ECHO: & ECHO: & ECHO: 
   ECHO      %yellow% ENTER 'S' TO START OVER %blue% & ECHO      %yellow% ENTER 'T' TO TRY TO GET A NEW MAVEN METADATA FILE %blue% & ECHO: & ECHO:
@@ -661,18 +662,18 @@ IF !MODLOADER!==FORGE ECHO !FROGEENTRY! | FINDSTR "[a-z] [A-Z]" && SET FORGEENTR
 
 :: Checks maven metadata file to determine if any manually entered version entered does in fact exist
 IF /I !MODLOADER!==FORGE (
-  FOR /F "tokens=1,2 delims=-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '%HEREPOWERSHELL%\univ-utils\maven-forge-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
+  FOR /F "tokens=1,2 delims=-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\maven-forge-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
     IF %%A==!MINECRAFT! IF %%B==!FROGEENTRY! GOTO :foundvalidforgeversion
     )
 )
 IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT!==1.20.1 (
-  FOR /F "tokens=1,2 delims=-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '%HEREPOWERSHELL%\univ-utils\maven-neoforge-1.20.1-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
+  FOR /F "tokens=1,2 delims=-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\maven-neoforge-1.20.1-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
     IF %%A==!MINECRAFT! IF %%B==!FROGEENTRY! GOTO :foundvalidforgeversion
   )
 )
 
 IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 (
-  FOR /F "tokens=1-4 delims=.-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '%HEREPOWERSHELL%\univ-utils\maven-neoforge-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
+  FOR /F "tokens=1-4 delims=.-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\maven-neoforge-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
     IF [%%D]==[] IF %%A==!MCMAJOR! IF %%B==!MCMINOR! IF !FROGEENTRY!==%%A.%%B.%%C  GOTO :foundvalidforgeversion
     IF [%%D] NEQ [] IF %%A==!MCMAJOR! IF %%B==!MCMINOR! IF !FROGEENTRY!==%%A.%%B.%%C-%%D  GOTO :foundvalidforgeversion
   )
@@ -989,8 +990,8 @@ FOR /F "delims=" %%A IN ('DIR /B univ-utils\java') DO (
     ECHO: & ECHO      - Found existing Java !JAVAVERSION! folder - %%A
     %DELAY%
     :: Runs a FOR loop with a powershell command to check the age of the found java folder.  If it's older than A_MONTHS months result is 'True'.  If it's newer than 3 months result is 'False'.
-    REM FOR /F %%G IN ('powershell -Command "Test-Path '%HEREPOWERSHELL%\univ-utils\java\%%A' -OlderThan (Get-Date).AddMonths(-2.5)"') DO (
-    FOR /F %%G IN ('powershell -Command "$path='%HEREPOWERSHELL%\univ-utils\java\%%A\bin\java.exe'; (Test-Path $path) -and ((Get-Item $path).LastWriteTime -lt (Get-Date).AddMonths(-!A_MONTHS!))"') DO (
+    REM FOR /F %%G IN ('powershell -Command "Test-Path '!HEREPOWERSHELL!\univ-utils\java\%%A' -OlderThan (Get-Date).AddMonths(-2.5)"') DO (
+    FOR /F %%G IN ('powershell -Command "$path='!HEREPOWERSHELL!\univ-utils\java\%%A\bin\java.exe'; (Test-Path $path) -and ((Get-Item $path).LastWriteTime -lt (Get-Date).AddMonths(-!A_MONTHS!))"') DO (
       :: If False then that means the folder is newer than 3 months - go ahead and use that folder for java, then move on!
       IF %%G==False (
         ECHO: & ECHO      - Java folder is Newer than !A_MONTHS! months - using this version^^!
@@ -1061,7 +1062,7 @@ ECHO: & ECHO   Downloading Java !JAVAVERSION! newest version from Adoptium
 SET "ADOPTIUMDL=https://api.adoptium.net/v3/assets/feature_releases/!JAVAVERSION!/ga?architecture=x64&heap_size=normal&image_type=!IMAGETYPE!&jvm_impl=hotspot&os=windows&page_size=1&project=jdk&sort_method=DEFAULT&sort_order=DESC&vendor=eclipse"
 ver >nul
 :: Gets the download URL for the newest release binaries ZIP using the URL Api and then in the same powershell command downloads it.  This avoids having to manipulate URL links with % signs in them in the CMD environment which is tricky.
-powershell -Command "$data=(((New-Object System.Net.WebClient).DownloadString('!ADOPTIUMDL!') | Out-String | ConvertFrom-Json)); (New-Object Net.WebClient).DownloadFile($data.binaries.package.link, '%HEREPOWERSHELL%\univ-utils\java\javabinaries.zip')"
+powershell -Command "$data=(((New-Object System.Net.WebClient).DownloadString('!ADOPTIUMDL!') | Out-String | ConvertFrom-Json)); (New-Object Net.WebClient).DownloadFile($data.binaries.package.link, '!HEREPOWERSHELL!\univ-utils\java\javabinaries.zip')"
 
 IF NOT EXIST "%HERE%\univ-utils\java\javabinaries.zip" (
   ECHO: & ECHO: & ECHO   JAVA BINARIES ZIP FILE FAILED TO DOWNLOAD - PRESS ANY KEY TO TRY AGAIN! & ECHO: & ECHO:
@@ -1406,8 +1407,8 @@ IF NOT EXIST "univ-utils\versions\!MINECRAFT!.json" (
 )
 
 :: Gets the JAR download URL and checksum value from the version.json file
-FOR /F "delims=" %%A IN ('powershell -Command "$data=(Get-Content -Raw -Path '%HEREPOWERSHELL%\univ-utils/versions/!MINECRAFT!.json' | Out-String | ConvertFrom-Json); $data.downloads.server.url"') DO SET "MCJARURL=%%A"
-FOR /F "delims=" %%A IN ('powershell -Command "$data=(Get-Content -Raw -Path '%HEREPOWERSHELL%\univ-utils/versions/!MINECRAFT!.json' | Out-String | ConvertFrom-Json); $data.downloads.server.sha1"') DO SET "MCJARCHECKSUM=%%A"
+FOR /F "delims=" %%A IN ('powershell -Command "$data=(Get-Content -Raw -Path '!HEREPOWERSHELL!\univ-utils/versions/!MINECRAFT!.json' | Out-String | ConvertFrom-Json); $data.downloads.server.url"') DO SET "MCJARURL=%%A"
+FOR /F "delims=" %%A IN ('powershell -Command "$data=(Get-Content -Raw -Path '!HEREPOWERSHELL!\univ-utils/versions/!MINECRAFT!.json' | Out-String | ConvertFrom-Json); $data.downloads.server.sha1"') DO SET "MCJARCHECKSUM=%%A"
 
 :: Downloads the vanilla Minecraft server JAR from the Mojang file server, using the obtained MCJARURL
 powershell -Command "(New-Object Net.WebClient).DownloadFile('!MCJARURL!', 'minecraft_server.!MINECRAFT!.jar')" >nul
@@ -1734,7 +1735,7 @@ IF EXIST univ-utils\allmodidsandfiles.txt DEL univ-utils\allmodidsandfiles.txt
 
 :: Checks to see if clientonlymods.txt exists, if it does check the age and delete to refresh if older than 1 day.  Then downloads file if it does not exist.
 IF EXIST "univ-utils\clientonlymods.txt" (
-  FOR /F %%G IN ('powershell -Command "Test-Path '%HEREPOWERSHELL%\univ-utils\clientonlymods.txt' -OlderThan (Get-Date).AddHours(-1)"') DO ( IF %%G==True DEL "univ-utils\clientonlymods.txt" )
+  FOR /F %%G IN ('powershell -Command "Test-Path '!HEREPOWERSHELL!\univ-utils\clientonlymods.txt' -OlderThan (Get-Date).AddHours(-1)"') DO ( IF %%G==True DEL "univ-utils\clientonlymods.txt" )
 )
 IF NOT EXIST "univ-utils\clientonlymods.txt" powershell -Command "(New-Object Net.WebClient).DownloadFile('https://raw.githubusercontent.com/nanonestor/utilities/main/clientonlymods.txt', 'univ-utils/clientonlymods.txt')" >nul
 
@@ -3046,7 +3047,7 @@ SET "blue="
 :: Sets a HERE variable equal to the current directory string.
 SET "HERE=%cd%"
 :: Makes a powershell specific HERE location, installing backquotes before single quotes - to prevent powershell functions breaking.
-SET "HEREPOWERSHELL=%HERE:'=`'%"
+SET "HEREPOWERSHELL=%HERE:'=''%"
 :: Sets a variable to the tab character for later use
 SET "TABCHAR=	"
 
