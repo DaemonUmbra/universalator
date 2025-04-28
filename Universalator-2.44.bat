@@ -2332,7 +2332,7 @@ IF DEFINED UPNPGETMCJAR (
 )
 
 SET CHECKPASS=IDK
-FOR /F "delims=" %%A IN ('powershell -Command="cmd.exe /c 'univ-utils\Portforwarded\Portforwarded.Server.exe' executable:file='!UPNPJAVA!' executable:workingdirectory='univ-utils\Portforwarded' executable:parameters='-Xmx3G -jar minecraft_server.1.4.2.jar nogui' upnp:0:Protocol='Tcp' upnp:0:LocalPort=!PORT! upnp:0:PublicPort=!PORT! testmode='true'"') DO (
+FOR /F "delims=" %%A IN ('powershell -Command "cmd.exe /c 'univ-utils\Portforwarded\Portforwarded.Server.exe' executable:file='!UPNPJAVA!' executable:workingdirectory='univ-utils\Portforwarded' executable:parameters='-Xmx3G -jar minecraft_server.1.4.2.jar nogui' upnp:0:Protocol='Tcp' upnp:0:LocalPort=!PORT! upnp:0:PublicPort=!PORT! testmode='true'"') DO (
     ECHO "%%A" | FINDSTR /I /C:"Created map for IP" >nul && SET CHECKPASS=Y
 )
 
