@@ -50,10 +50,6 @@ SET "ARGS=-XX:+UseG1GC -Dsun.rmi.dgc.server.gcInterval=2147483646 -XX:+UnlockExp
 :: Additional JVM arguments - that will always be applied.
 SET "OTHERARGS=-XX:+IgnoreUnrecognizedVMOptions -Dlog4j2.formatMsgNoLookups=true"
 
-:: The default Java usage setting.
-:: Only possible settings:  A -Automatic detection/installation / J -Windows OS Java path / F -Force Adoptium obtained by Universalator
-SET OVERRIDE=A
-
 
 
 
@@ -822,6 +818,7 @@ EXIT /B
 IF NOT DEFINED ASKMODSCHECK SET ASKMODSCHECK=Y
 IF NOT DEFINED PROTOCOL SET PROTOCOL=TCP
 IF NOT DEFINED USEPORTFORWARDED SET USEPORTFORWARDED=N
+IF NOT DEFINED OVERRIDE SET OVERRIDE=A
 
 :: Generates settings-universalator.txt file according to the current settings values.  The first value only having one > overwrites any existing file text with one single line
 
@@ -860,6 +857,10 @@ IF NOT DEFINED USEPORTFORWARDED SET USEPORTFORWARDED=N
     ECHO ::>>settings-universalator.txt
     ECHO :: Whether or not to remember auto port forwarding using UPnP with Portforwarded>>settings-universalator.txt
     ECHO SET USEPORTFORWARDED=!USEPORTFORWARDED!>>settings-universalator.txt
+    ECHO ::>>settings-universalator.txt
+    ECHO :: The Java OVERRIDE setting A=automatic detect / fetch, J=system PATH java, F=force Adoptium>>settings-universalator.txt
+    ECHO SET OVERRIDE=!OVERRIDE!>>settings-universalator.txt
+
 EXIT /B
 :: END FUNCTION TO STAMP A NEW SETTINGS FILE USING EXISTING VARIABLE VALUES
 
@@ -888,7 +889,18 @@ IF EXIST settings-universalator.txt (
   IF /I !MODLOADER!==NEOFORGE SET NEOFORGE=!MODLOADERVERSION!
   IF /I !MODLOADER!==FABRIC SET FABRICLOADER=!MODLOADERVERSION!
   IF /I !MODLOADER!==QUILT SET QUILTLOADER=!MODLOADERVERSION!
+
+  :: Gets a value for the name of OVERRIDE java if using system PATH java
+  IF DEFINED OVERRIDE IF !OVERRIDE!==J (
+    FOR /F "usebackq delims=" %%J IN (`"java -version 2>&1"`) DO (
+        ECHO     %%J
+        SET "JAV[!num!]=%%J"
+        SET /a "num+=1"
+    )
+    SET CUSTOMJAVA=!JAV[1]!
+  )
 )
+
 :: Sets these variables for global use if they aren't set yet
 IF NOT DEFINED MCMAJOR ( CALL :get_mcmajorminor )
 
@@ -2539,6 +2551,7 @@ IF "!OVERRIDE!"=="F" (
     ECHO   %yellow% This setting will ignore any Operating System installed Java. %blue%
 )
 ECHO: & ECHO: & ECHO: & ECHO: & ECHO: & ECHO:
+CALL :univ_settings_edit OVERRIDE !OVERRIDE!
 PAUSE
 EXIT /B
 :: END JAVA OVERRIDE SECTION
