@@ -101,6 +101,8 @@ IF NOT EXIST settings-universalator.txt ( CALL :settingsentry )
 TITLE Universalator %UNIV_VERSION%
 :: Reads off the values of the settings file to set variables for use.
 CALL :read_settings_file
+:: If the settings file still hasn't asked to scan client mods, and there is a mods folder with files, ask.
+IF !ASKMODSCHECK!==Y IF EXIST mods DIR /b "mods\*.jar" 2>nul | FINDSTR .>nul && CALL :clientmodsscan
 
 CALL :check_upnp_program_exists
 
@@ -121,10 +123,10 @@ ECHO   %yellow% MINECRAFT VERSION %blue% !MINECRAFT!
 ECHO   %yellow% MODLOADER %blue%         !MODLOADER!
 
 :: These aren't combined into one line because different modloader types would make the display formatting offsets different
-IF /I !MODLOADER!==NEOFORGE ECHO   %yellow% NEOFORGE VERSION %blue%  !NEOFORGE!
-IF /I !MODLOADER!==FORGE ECHO   %yellow% FORGE VERSION %blue%     !FORGE!
-IF /I !MODLOADER!==FABRIC ECHO   %yellow% FABRIC LOADER %blue%     !FABRICLOADER!
-IF /I !MODLOADER!==QUILT ECHO   %yellow% FABRIC LOADER %blue%     !QUILTLOADER!
+IF /I !MODLOADER!==NEOFORGE ECHO   %yellow% NEOFORGE VERSION %blue%  !MODLOADERVERSION!
+IF /I !MODLOADER!==FORGE ECHO   %yellow% FORGE VERSION %blue%     !MODLOADERVERSION!
+IF /I !MODLOADER!==FABRIC ECHO   %yellow% FABRIC LOADER %blue%     !MODLOADERVERSION!
+IF /I !MODLOADER!==QUILT ECHO   %yellow% QUILT LOADER %blue%      !MODLOADERVERSION!
 
 IF !OVERRIDE! NEQ J ECHO   %yellow% JAVA VERSION %blue%      !JAVAVERSION!
 IF !OVERRIDE!==J ECHO   %yellow% JAVA VERSION %blue%   %green% * CUSTOM OVERRIDE - OS JAVA PATH * %blue% & ECHO                       !CUSTOMJAVA!
@@ -158,9 +160,17 @@ IF "!MAINMENU:~-1!"==" " CALL :trim "!MAINMENU!" MAINMENU
 :: Main menu / All-commands menu - possible entries
 IF /I !MAINMENU!==Q COLOR 07 & CLS & EXIT
 IF /I !MAINMENU!==UPNP ( CALL :upnpmenu_funciton )
+IF /I !MAINMENU!==V ( 
+  CALL :get_modloader_metadatafile
+  IF /I !MODLOADER!==FORGE CALL :enter_forge_neoforge_version
+  IF /I !MODLOADER!==NEOFORGE CALL :enter_forge_neoforge_version
+  IF /I !MODLOADER!==FABRIC CALL :enter_fabric_quilt_version
+  IF /I !MODLOADER!==QUILT CALL :enter_fabric_quilt_version
+  CALL :univ_settings_edit MODLOADERVERSION !MODLOADERVERSION!
+)
+IF /I !MAINMENU!==J ( CALL :setjava )
 IF /I !MAINMENU!==R ( CALL :enter_ram )
 IF /I !MAINMENU!==S ( CALL :settingsentry )
-IF /I !MAINMENU!==J ( CALL :setjava )
 IF /I !MAINMENU!==L ( GOTO :launch_sequence )
 IF /I !MAINMENU!==SCAN ( CALL :clientmodsscan )
 IF /I !MAINMENU!==OVERRIDE ( CALL :override )
@@ -190,8 +200,9 @@ ECHO: & ECHO: & ECHO:
 ECHO:    %green% M %blue% = MAIN MENU
 ECHO:    %green% S %blue% = RE-ENTER ALL SETTINGS
 ECHO:    %green% L %blue% = LAUNCH SERVER
-ECHO:    %green% R %blue% = SET RAM MAXIMUM AMOUNT
+ECHO:    %green% V %blue% = SET MODLOADER VERSION
 ECHO:    %green% J %blue% = SET JAVA VERSION
+ECHO:    %green% R %blue% = SET RAM MAXIMUM AMOUNT
 ECHO:    %green% Q %blue% = QUIT
 ECHO:
 ECHO:    %green% SCAN %blue%     = SCAN MOD FILES FOR CLIENT ONLY MODS
@@ -204,7 +215,7 @@ ECHO:    %green% LOG %blue%      = VIEW THE LAST LOG FILE MADE
 ECHO:    %green% MODS/SMOD%blue% = VIEW ALL FILES ^& FOLDERS IN MODS FOLDER
 ECHO:    %green% MCREATOR %blue% = SCAN MOD FILES FOR MCREATOR MADE MODS
 ECHO:    %green% OVERRIDE %blue% = TOGGLE THE JAVA OVERRIDE STATUS
-ECHO:    %green% ZIP %blue%      = MENU FOR CREATING SERVER PACK ZIP FILE & ECHO: & ECHO: & ECHO:
+ECHO:    %green% ZIP %blue%      = MENU FOR CREATING SERVER PACK ZIP FILE & ECHO: & ECHO:
 :: Instead of yet another entry prompt, goes back to utilize the same main menu prompt and logic.  All-commands menu is really just an alternate main menu display.
 GOTO :allcommandsentry
 
@@ -505,7 +516,6 @@ IF /I !ASKFQLOADER! NEQ Y IF /I !ASKFQLOADER! NEQ N GOTO :redofabricquiltloader
 :: If Y was entered then set the modloader version variables and then exit the funciton.
 IF /I !ASKFQLOADER!==Y (
   SET "MODLOADERVERSION=!FQLOADER!"
-  SET "!MODLOADER!LOADER=!FQLOADER!"
   EXIT /B
 ) ELSE (
   ECHO   %yellow% ENTER A CUSTOM SET !MODLOADER! LOADER VERSION: %blue% & ECHO:
@@ -522,7 +532,9 @@ FOR /F %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWER
 
 :: If this point is reached then no valid Loader version was found on the maven - go to the oops message
 CLS
-ECHO: & ECHO: & ECHO: & ECHO: & ECHO: & 
+ECHO: & ECHO:
+ECHO   YOUR FOLDER LOCATION^:
+ECHO   !HERE! & ECHO: & ECHO:
 IF !MODLOADER!==FABRIC ECHO   %red% OOPS - THE VERSION OF %yellow% !MODLOADER! %red% ENTERED : %yellow% %FABRICLOADER% %blue%
 IF !MODLOADER!==QUILT ECHO   %red% OOPS - THE VERSION OF %yellow% !MODLOADER! %red% ENTERED : %yellow% %QUILTLOADER% %blue%
 ECHO: & ECHO   %red% DOES NOT SEEM TO EXIST ON THE !MODLOADER! FILE SERVER %blue% & ECHO:
@@ -640,8 +652,8 @@ SET /P "FROGEENTRY="
 IF NOT DEFINED FROGEENTRY GOTO :redoenterforge
 :: Skips ahead if Y to select the already found newest version was entered
 IF /I !FROGEENTRY!==Y (
-  IF !MODLOADER!==FORGE SET FORGE=!NEWESTFORGE!
-  IF !MODLOADER!==NEOFORGE SET NEOFORGE=!NEWESTNEOFORGE!
+  IF !MODLOADER!==FORGE ( SET FORGE=!NEWESTFORGE! & SET MODLOADERVERSION=!NEWESTFORGE! )
+  IF !MODLOADER!==NEOFORGE ( SET NEOFORGE=!NEWESTNEOFORGE! & SET MODLOADERVERSION=!NEWESTNEOFORGE! )
   EXIT /B
 )
 :: Trims off any trailing spaces
@@ -652,8 +664,8 @@ ECHO:
 SET FORGEENTRYCHECK=IDK
 IF !MODLOADER!==FORGE ECHO !FROGEENTRY! | FINDSTR "[a-z] [A-Z]" && SET FORGEENTRYCHECK=LETTER
  IF !FORGEENTRYCHECK!==IDK (
-    IF /I !MODLOADER!==FORGE SET FORGE=!FROGEENTRY!
-    IF /I !MODLOADER!==NEOFORGE SET NEOFORGE=!FROGEENTRY!
+    IF /I !MODLOADER!==FORGE ( SET FORGE=!FROGEENTRY! & SET MODLOADERVERSION=!FROGEENTRY! )
+    IF /I !MODLOADER!==NEOFORGE ( SET NEOFORGE=!FROGEENTRY! & SET MODLOADERVERSION=!FROGEENTRY! )
 ) ELSE (
   ECHO: & ECHO OOPS NOT A VALID ENTRY MADE - PRESS ANY KEY AND TRY AGAIN & ECHO:
   PAUSE
@@ -681,7 +693,9 @@ IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 (
 
 :: If no valid version was detected on the maven file server XML list then no skip ahead was done to the foundvalidforgeversion label - display error and go back to enter another version
 CLS
-ECHO: & ECHO: & ECHO: & ECHO: & ECHO: & 
+ECHO: & ECHO:
+ECHO   YOUR FOLDER LOCATION^:
+ECHO   !HERE! & ECHO: & ECHO:
 ECHO   %red% OOPS - THE VERSION OF %yellow% !MODLOADER! %red% ENTERED : %yellow% %MINECRAFT% - %FROGEENTRY% %blue% & ECHO:
 ECHO   %red% DOES NOT SEEM TO EXIST ON THE !MODLOADER! FILE SERVER %blue% & ECHO:
 ECHO   %red% ENTER A DIFFERENT VERSION NUMBER THAT IS KNOWN TO EXIST FOR YOUR ENTERED MINECRAFT VERSION !MINECRAFT! %blue% & ECHO: & ECHO:
@@ -820,10 +834,7 @@ IF NOT DEFINED USEPORTFORWARDED SET USEPORTFORWARDED=N
     ECHO SET MODLOADER=!MODLOADER!>>settings-universalator.txt
     ECHO ::>>settings-universalator.txt
     ECHO :: Enter the version number of the modloader type set above>>settings-universalator.txt
-    IF /I !MODLOADER!==FORGE ECHO SET MODLOADERVERSION=!FORGE!>>settings-universalator.txt
-    IF /I !MODLOADER!==NEOFORGE ECHO SET MODLOADERVERSION=!NEOFORGE!>>settings-universalator.txt
-    IF /I !MODLOADER!==FABRIC ECHO SET MODLOADERVERSION=!FABRICLOADER!>>settings-universalator.txt
-    IF /I !MODLOADER!==QUILT ECHO SET MODLOADERVERSION=!QUILTLOADER!>>settings-universalator.txt
+    IF /I !MODLOADER! NEQ VANILLA ECHO SET MODLOADERVERSION=!MODLOADERVERSION!>>settings-universalator.txt
     IF /I !MODLOADER!==VANILLA ECHO SET MODLOADERVERSION=>>settings-universalator.txt
     ECHO ::>>settings-universalator.txt
     ECHO :: Java version - do not edit - this is set by the script>>settings-universalator.txt
@@ -849,7 +860,6 @@ IF NOT DEFINED USEPORTFORWARDED SET USEPORTFORWARDED=N
     ECHO ::>>settings-universalator.txt
     ECHO :: Whether or not to remember auto port forwarding using UPnP with Portforwarded>>settings-universalator.txt
     ECHO SET USEPORTFORWARDED=!USEPORTFORWARDED!>>settings-universalator.txt
-
 EXIT /B
 :: END FUNCTION TO STAMP A NEW SETTINGS FILE USING EXISTING VARIABLE VALUES
 
@@ -1673,7 +1683,11 @@ DIR /b "mods\*.jar" 2>nul | FINDSTR .>nul || (
 :: If the above tests then continue.
 :redo_askmodsscan
 IF EXIST "mods" (
-  SET ASKMODSCHECK=N
+  :: Always set ASKMODSCHECK to N since this screen is being viewed at least this time.
+  IF !ASKMODSCHECK!==Y (
+    SET ASKMODSCHECK=N
+    CALL :univ_settings_edit ASKMODSCHECK N
+  )
 
   CLS
   ECHO: & ECHO:
@@ -2332,7 +2346,8 @@ IF DEFINED UPNPGETMCJAR (
 )
 
 SET CHECKPASS=IDK
-FOR /F "delims=" %%A IN ('powershell -Command "cmd.exe /c 'univ-utils\Portforwarded\Portforwarded.Server.exe' executable:file='!UPNPJAVA!' executable:workingdirectory='univ-utils\Portforwarded' executable:parameters='-Xmx3G -jar minecraft_server.1.4.2.jar nogui' upnp:0:Protocol='Tcp' upnp:0:LocalPort=!PORT! upnp:0:PublicPort=!PORT! testmode='true'"') DO (
+:: To pass a command-to-process with strings inside to FOR you need to also wrap the whole thing with double quotes.
+FOR /F "delims=" %%A IN ('""univ-utils\Portforwarded\Portforwarded.Server.exe" executable:file="!UPNPJAVA!" executable:workingdirectory="univ-utils\Portforwarded" executable:parameters="-Xmx3G -jar minecraft_server.1.4.2.jar nogui" upnp:0:Protocol=Tcp upnp:0:LocalPort=!PORT! upnp:0:PublicPort=!PORT! testmode="true""') DO (
     ECHO "%%A" | FINDSTR /I /C:"Created map for IP" >nul && SET CHECKPASS=Y
 )
 
@@ -2434,6 +2449,7 @@ SET /P SCRATCH="%blue%  %green% ENTRY: %blue% " <nul
 SET /P "ASKUPNPDOWNLOAD="
 IF /I !ASKUPNPDOWNLOAD! NEQ N IF /I !ASKUPNPDOWNLOAD! NEQ Y GOTO :upnpdownload
 IF /I !ASKUPNPDOWNLOAD!==N EXIT /B 1
+:try_upnp_download
 :: If download is chosen - download the Portforwarded Windows client ZIP file, License.  Then unzip out only the Portforwarded.Server.exe
 IF /I !ASKUPNPDOWNLOAD!==Y IF NOT EXIST "%HERE%\univ-utils\Portforwarded\Portforwarded.Server.exe" (
   CLS
@@ -2453,6 +2469,26 @@ IF /I !ASKUPNPDOWNLOAD!==Y IF NOT EXIST "%HERE%\univ-utils\Portforwarded\Portfor
       EXIT /B 1
   )
   IF EXIST "%HERE%\univ-utils\Portforwarded\Portforwarded.Server.exe" (
+
+    :: Compares a checksum of the actual downloaded file to the one obtained above as the correct value to have.
+    set idx=0 
+    FOR /F %%F IN ('certutil -hashfile "univ-utils\Portforwarded\Portforwarded.Server.exe" SHA256') DO (
+      SET OUT[!idx!]=%%F
+      SET /a idx+=1
+    )
+    SET FILECHECKSUM=!OUT[1]!
+
+    IF !FILECHECKSUM! NEQ 459b1a811bf985c4ef9a5568a33de71ba7f7e6b3df94671341564f22e1b66a37 (
+      CLS
+      ECHO: & ECHO: & ECHO: & ECHO   THE SHA256 CHECKSUM ^(HASH VALUE^) OF THE DOWNLOADED %yellow% Portforwarded.Server.exe %blue% FILE
+      ECHO   DID NOT MATCH THE CORRECT VALUE - THE FILE IS CORRUPTED OR ONLY A PARTIAL DOWNLOAD & ECHO:
+      ECHO   PRESS ANY KEY TO DELETE THAT FILE AND TRY TO DOWNLOAD A NEW FILE COPY & ECHO: & ECHO:
+      PAUSE
+      DEL univ-utils\Portforwarded\Portforwarded.Server.exe
+      CLS
+      GOTO :try_upnp_download
+    )
+
     ECHO: & ECHO   %green% Portforwarded FILE Portforwarded.Server.exe SUCCESSFULLY EXTRACTED FROM ZIP %blue% & ECHO:
     ECHO       Going back to UPnP menu ... ... ... & ECHO:
     PAUSE
