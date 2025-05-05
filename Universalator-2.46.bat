@@ -1949,6 +1949,10 @@ FOR /L %%f IN (0,1,!SERVERMODSCOUNT!) DO (
   SET "SERVERMODS[%%f].environ=!SERVERMODS[%%f].environ: =!"
   SET "SERVERMODS[%%f].deps=!SERVERMODS[%%f].deps: =!"
   IF /I !SERVERMODS[%%f].environ!==client SET FOUNDFABRICCLIENTS=Y
+  REM Overrides to client any modIDs listed - for popular mods which are not marked correctly in their fabric.mod.json (or need their code fixed)
+  FOR %%A IN (e4mc_minecraft) DO (
+    ECHO !SERVERMODS[%%f].id! | FINDSTR %%A && ( SET FOUNDFABRICCLIENTS=Y & SET "SERVERMODS[%%f].environ=client" )
+  )
 )
 
 REM Goes to the no clients found message.  If any environment client mods were found this trigger variable will be Y instead.
@@ -2609,7 +2613,7 @@ SET /P "ASKUPNPDOWNLOAD="
 IF /I !ASKUPNPDOWNLOAD! NEQ M IF /I !ASKUPNPDOWNLOAD! NEQ Y GOTO :zipit
 IF /I !ASKUPNPDOWNLOAD!==M ( EXIT /B )
 
-:: Scans over the files and folders in the current directory and lists and use them to start off the list of files to include in the ZIP.
+REM Scans over the files and folders in the current directory and lists and use them to start off the list of files to include in the ZIP.
 SET /a ZIPCOUNT=0
 FOR /F %%A IN ('DIR /B') DO (
   IF %%A==config SET "ZIPFILE[!ZIPCOUNT!]=config" & SET /a ZIPCOUNT+=1
@@ -2629,7 +2633,6 @@ FOR /F %%A IN ('DIR /B') DO (
 :zipit2
 CLS
 ECHO: & ECHO    ZIP SERVER PACK - ZIP SERVER PACK %blue% & ECHO:
-
 FOR /L %%B IN (0,1,!ZIPCOUNT!) DO (
   IF [!ZIPFILE[%%B]!] NEQ [] IF !ZIPFILE[%%B]! NEQ deletedentry ECHO   %yellow% !ZIPFILE[%%B]! %blue% 
 )
@@ -2647,9 +2650,9 @@ ECHO:
 IF /I !ASKUPNPDOWNLOAD! NEQ M IF /I "!ASKUPNPDOWNLOAD:~0,6!" NEQ "ZIPIT " IF /I "!ASKUPNPDOWNLOAD:~0,3!" NEQ "ADD" IF /I "!ASKUPNPDOWNLOAD:~0,3!" NEQ "REM" GOTO :zipit2
 IF /I !ASKUPNPDOWNLOAD!==M ( EXIT /B )
 
-:: ADD section
-:: Filters entries to deny adding things that should be installed by user or a script like modloader files.
-:: If entry is allowed and exists then it adds +1 to ZIPCOUNT a new pseudo array ZIPFILE variable for the entry.
+REM ADD section
+REM Filters entries to deny adding things that should be installed by user or a script like modloader files.
+REM If entry is allowed and exists then it adds +1 to ZIPCOUNT a new pseudo array ZIPFILE variable for the entry.
 IF /I "!ASKUPNPDOWNLOAD:~0,3!"=="ADD" (
   SET "TEMP=!ASKUPNPDOWNLOAD:~4!"
   ECHO !TEMP! | FINDSTR /I "univ-utils .fabric libraries versions logs .jar" >nul
@@ -2667,14 +2670,13 @@ IF /I "!ASKUPNPDOWNLOAD:~0,3!"=="ADD" (
   )
 )
 
-:: REM section
-:: Changes rem entries into the string 'deletedentry'.  Adding and then removing a ton of entries eventually winds up in a large ZIPCOUNT but it's not a big problem.
+REM REM section
+REM Changes rem entries into the string 'deletedentry'.  Adding and then removing a ton of entries eventually winds up in a large ZIPCOUNT but it's not a big problem.
 IF /I "!ASKUPNPDOWNLOAD:~0,3!"=="REM" (
   SET "TEMP=!ASKUPNPDOWNLOAD:~4!"
   IF EXIST "!TEMP!" (
     FOR /L %%R IN (0,1,!ZIPCOUNT!) DO (
       IF "!ZIPFILE[%%R]!"=="!TEMP!" SET ZIPFILE[%%R]=deletedentry
-      ECHO !ZIPFILE[%%R]!
     )
   ) ELSE (
     ECHO   %red% 'REM' ENTRY '!TEMP!' DOES NOT EXIST - Filenames must be exact and include any extension! %blue% & ECHO:
@@ -2686,19 +2688,34 @@ IF /I "!ASKUPNPDOWNLOAD:~0,6!"=="ZIPIT " (
   SET "ZIPNAME=!ASKUPNPDOWNLOAD:~6!"
   IF [!ASKUPNPDOWNLOAD:~6!]==[] GOTO :zipit2
   IF EXIST "!ZIPNAME!.zip" DEL "!ZIPNAME!.zip" >nul
+  REM Adds each file selected in the users list
   FOR /L %%R IN (0,1,!ZIPCOUNT!) DO (
     IF "!ZIPFILE[%%R]!" NEQ "deletedentry" IF [!ZIPFILE[%%R]!] NEQ [] (
       powershell -Command "Compress-Archive -CompressionLevel Optimal -Path '!ZIPFILE[%%R]!' -Update -DestinationPath '!ZIPNAME!.zip'" >nul
     )
   )
-  IF NOT EXIST univ-utils\readme.txt (
-    ECHO Using this serverpack->univ-utils\readme.txt
-    ECHO .>>univ-utils\readme.txt
-    ECHO If using Windows - run the file named 'Universalator-version.bat', then launch.  Changing any settings, do not alter the Minecraft version - '!MINECRAFT!'>>univ-utils\readme.txt
-    ECHO .>>univ-utils\readme.txt
-    ECHO IF using Linux or OSX/Mac go to the website for the modloader used - '!MODLOADER!' - and install, then launch the core server files for that modloader using the same Minecraft - '!MINECRAFT!' - and Modloader version - '!MODLOADERVERSION!' - as the modpack version or custom profile you are using.  Use the same version of java - '!JAVAVERSION!'.>>univ-utils\readme.txt
-  )
-  powershell -Command "Compress-Archive -CompressionLevel Optimal -Path 'univ-utils\readme.txt' -Update -DestinationPath '!ZIPNAME!.zip'" >nul
+  REM Adds a readme.txt file
+  IF NOT EXIST univ-utils\readme-server.txt (
+    ECHO Using this serverpack-
+    ECHO .
+    ECHO If using Windows - run the file named 'Universalator-^<version^>.bat', then launch.  If changing any Minecraft or Modloader version settings, check that they are compatible with your server files.
+    ECHO .
+    ECHO IF using Linux or macOS follow these steps via a terminal working in the server directory/folder, to install required tools and launch ^(Ubuntu distro example^)-
+    ECHO    sudo apt update                              ^< Updates the local package list
+    ECHO    sudo apt upgrade                             ^< Updates your existing packages
+    ECHO    sudo apt install xmlstarlet jq dnsutils      ^< Installs required linux packages/tools
+    ECHO    chmod +rwx Universalator-linux.sh            ^< Gives the script system permissions
+    ECHO    bash Universalator-linux.sh                  ^< Runs the server script using bash
+    ECHO.
+    ECHO For other Linux/macOS distro examples you view the Universalator linux wiki at - https^://github.com/nanonestor/universalator/wiki/3-Using-%E2%80%90-Linux-^&-MacOS
+    ECHO .
+  )>univ-utils\readme-server.txt
+  powershell -Command "Compress-Archive -CompressionLevel Optimal -Path 'univ-utils\readme-server.txt' -Update -DestinationPath '!ZIPNAME!.zip'" >nul
+
+  REM Adds the linux/macOS version of the Universalator script to the ZIP
+  IF NOT EXIST univ-utils\Universalator-linux.sh powershell -Command "(New-Object Net.WebClient).DownloadFile('https://raw.githubusercontent.com/nanonestor/universalator/latest-linux/Universalator-linux.sh', 'univ-utils\Universalator-linux.sh')" >nul
+  IF EXIST univ-utils\Universalator-linux.sh powershell -Command "Compress-Archive -CompressionLevel Optimal -Path 'univ-utils\Universalator-linux.sh' -Update -DestinationPath '!ZIPNAME!.zip'" >nul
+
   ECHO: & ECHO   %yellow% Finished creating server pack zip named !ZIPNAME!.zip %blue% & ECHO: & ECHO:
   PAUSE
   EXIT /B
