@@ -1643,6 +1643,18 @@ IF "!LAUNCH!"=="NORMAL" ("!JAVAFILE!" !LAUNCHLINE!)
 
 :: UPNP LAUNCH COMMAND - port forwarding launch method using Portfowarded.Server
 IF "!LAUNCH!"=="UPNP" (
+  
+  REM Finds the current DOTNET version and if it's the basic windows 5.x version recommend installing newer if UPNP doesn't work.
+  FOR /F "tokens=1-4 delims=." %%A IN ('dotnet --version') DO ( SET "DOTNETVERSION=%%A" & SET "DOTNETVERSIONFULL=%%A.%%B.%%C" )
+  ECHO   Current Microsoft DOTNET software version - !DOTNETVERSIONFULL! & ECHO.
+
+  IF !DOTNETVERSION! LSS 8 (
+    ECHO   If UPNP port forwarding does not work using the basic Microsoft Windows installed DOTNET version,
+    ECHO   you can try installing the newest versions available published by Microsoft. & ECHO.
+    ECHO   -- Installers for the newest versions of Microsoft DOTNET can be found at Microsoft's website here^:
+    ECHO      https://dotnet.microsoft.com/en-us/download & ECHO.
+  )
+  PAUSE
   IF /I "!PROTOCOL!"=="TCP" (univ-utils\Portforwarded\Portforwarded.Server.exe executable:file="!JAVAFILE!" executable:workingdirectory="!HERE!" executable:parameters="!LAUNCHLINE!" upnp:0:Protocol="Tcp" upnp:0:LocalPort=!PORT! upnp:0:PublicPort=!PORT!)
   IF /I "!PROTOCOL!"=="BOTH" (univ-utils\Portforwarded\Portforwarded.Server.exe executable:file="!JAVAFILE!" executable:workingdirectory="!HERE!" executable:parameters="!LAUNCHLINE!" upnp:0:Protocol="Tcp" upnp:0:LocalPort=!PORT! upnp:0:PublicPort=!PORT! upnp:1:Protocol="Udp" upnp:1:LocalPort=!PORTUDP! upnp:1:PublicPort=!PORTUDP!)
   IF /i "!PROTOCOL!"=="UDP" (univ-utils\Portforwarded\Portforwarded.Server.exe executable:file="!JAVAFILE!" executable:workingdirectory="!HERE!" executable:parameters="!LAUNCHLINE!" upnp:1:Protocol="Udp" upnp:1:LocalPort=!PORTUDP! upnp:1:PublicPort=!PORTUDP!)
