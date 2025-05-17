@@ -1654,7 +1654,7 @@ IF "!LAUNCH!"=="UPNP" (
     ECHO   -- Installers for the newest versions of Microsoft DOTNET can be found at Microsoft's website here^:
     ECHO      https://dotnet.microsoft.com/en-us/download & ECHO.
   )
-  PAUSE
+
   IF /I "!PROTOCOL!"=="TCP" (univ-utils\Portforwarded\Portforwarded.Server.exe executable:file="!JAVAFILE!" executable:workingdirectory="!HERE!" executable:parameters="!LAUNCHLINE!" upnp:0:Protocol="Tcp" upnp:0:LocalPort=!PORT! upnp:0:PublicPort=!PORT!)
   IF /I "!PROTOCOL!"=="BOTH" (univ-utils\Portforwarded\Portforwarded.Server.exe executable:file="!JAVAFILE!" executable:workingdirectory="!HERE!" executable:parameters="!LAUNCHLINE!" upnp:0:Protocol="Tcp" upnp:0:LocalPort=!PORT! upnp:0:PublicPort=!PORT! upnp:1:Protocol="Udp" upnp:1:LocalPort=!PORTUDP! upnp:1:PublicPort=!PORTUDP!)
   IF /i "!PROTOCOL!"=="UDP" (univ-utils\Portforwarded\Portforwarded.Server.exe executable:file="!JAVAFILE!" executable:workingdirectory="!HERE!" executable:parameters="!LAUNCHLINE!" upnp:1:Protocol="Udp" upnp:1:LocalPort=!PORTUDP! upnp:1:PublicPort=!PORTUDP!)
