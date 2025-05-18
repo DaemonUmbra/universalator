@@ -3741,17 +3741,17 @@ IF NOT DEFINED FORGEFILE (
   EXIT /B
 )
 
-:: Generates the run.sh and run.bat scripts, overwrites the files every time completely.  Still just use user_jvm_arg.txt even for MC versions 1.16 and older.
+:: Generates the run.sh and run.bat scripts, overwrites the files every time completely. For MC versions 1.16 and older put the JVM args directly in the file.
 (
   ECHO #!/usr/bin/env sh
-  IF !MODLOADER!==FORGE IF !MCMAJOR! LEQ 16 ECHO java @user_jvm_args.txt -jar !FORGEFILE! nogui
+  IF !MODLOADER!==FORGE IF !MCMAJOR! LEQ 16 ECHO java !MAXRAM! !ARGS! !OTHERARGS! -jar !FORGEFILE! nogui
   IF !MODLOADER!==FORGE IF !MCMAJOR! GTR 16 ECHO java @user_jvm_args.txt @libraries/net/minecraftforge/forge/!MINECRAFT!-!MODLOADERVERSION!/unix_args.txt nogui "$@"
   IF !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 ECHO java @user_jvm_args.txt @libraries/net/neoforged/neoforge/!MODLOADERVERSION!/unix_args.txt nogui "$@"
   IF !MODLOADER!==NEOFORGE IF !MINECRAFT!==1.20.1 ECHO java @user_jvm_args.txt @libraries/net/neoforged/forge/!MINECRAFT!-!MODLOADERVERSION!/unix_args.txt nogui "$@"
 )>run.sh
 (
   ECHO @echo off
-  IF !MODLOADER!==FORGE IF !MCMAJOR! LEQ 16 ECHO java @user_jvm_args.txt -jar !FORGEFILE! nogui
+  IF !MODLOADER!==FORGE IF !MCMAJOR! LEQ 16 ECHO java !MAXRAM! !ARGS! !OTHERARGS! -jar !FORGEFILE! nogui
   IF !MODLOADER!==FORGE IF !MCMAJOR! GTR 16 ECHO java @user_jvm_args.txt @libraries/net/minecraftforge/forge/!MINECRAFT!-!MODLOADERVERSION!/win_args.txt nogui %%*
   IF !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 ECHO java @user_jvm_args.txt @libraries/net/neoforged/neoforge/!MODLOADERVERSION!/win_args.txt nogui %%*
   IF !MODLOADER!==NEOFORGE IF !MINECRAFT!==1.20.1 ECHO java @user_jvm_args.txt @libraries/net/neoforged/forge/!MINECRAFT!-!MODLOADERVERSION!/win_args.txt nogui %%*
@@ -3766,9 +3766,13 @@ If !JAVAVERSION! GEQ 17 (
 :: Makes a final combined args.
 IF DEFINED USEARGS ( SET "USEARGS=!MAXRAM! !USEARGS! !OTHERARGS!" ) ELSE ( SET "USEARGS=!MAXRAM! !OTHERARGS!" )
 :: Dumps the determined JVM args to a user_jvm_args.txt file.
-(ECHO !USEARGS!)>user_jvm_args.txt
+IF !MCMAJOR! GTR 16 (ECHO !USEARGS!)>user_jvm_args.txt
+:: If MC is 1.16 or older delete any existing user_jvm_args.txt file to avoid confusion - those settings will be directly in the script files.
+IF !MCMAJOR! LEQ 16 IF EXIST user_jvm_args.txt DEL user_jvm_args.txt
 
-ECHO: & ECHO   %yellow% Generated basic run.sh / run.bat script files^^! %blue% & ECHO   %yellow% JVM Startup arguments were put into user_jvm_arg.txt including ram entry ^(!MAXRAM!^) %blue% & ECHO:
+ECHO: & ECHO   %yellow% Generated basic run.sh / run.bat script files^^! %blue%
+IF !MCMAJOR! GTR 16 ECHO   %yellow% JVM Startup arguments were put into user_jvm_arg.txt including ram entry ^(!MAXRAM!^) %blue%
+ECHO:
 PAUSE
 
 EXIT /B
