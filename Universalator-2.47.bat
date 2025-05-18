@@ -3719,6 +3719,12 @@ EXIT /B
 :: FUNCTION TO GENERATE GENERIC RUN SCRIPTS
 :gen_run_scripts
 
+IF !MODLOADER! NEQ FORGE IF !MODLOADER! NEQ NEOFORGE (
+  ECHO: & ECHO   %red% !MODLOADER! - does not generate run.bat / run.sh scripts.  This is only for Forge / Neoforge modloaders. %blue% & ECHO:
+  PAUSE
+  EXIT /B
+)
+
 SET "FORGEFILE="
 
 :: Prepares a file name for the Forge starting JAR if the MC version is the older direct-launch the JAR file type.
