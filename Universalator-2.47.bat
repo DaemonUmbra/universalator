@@ -2876,7 +2876,7 @@ ECHO: & ECHO  %yellow% SERVER PROPERTIES - SERVER PROPERTIES %blue% & ECHO:
 set /a idk=0
 FOR %%A IN (difficulty enable-command-block enforce-whitelist function-permission-level level-name level-seed level-type max-players max-tick-time max-world-size motd region-file-compression server-port simulation-distance spawn-protection view-distance white-list) DO (
   FINDSTR "%%A" server.properties 1>nul 2>nul && ( 
-    FOR /F "tokens=1,2 delims== " %%X IN ('FINDSTR "%%A" server.properties') DO (
+    FOR /F "tokens=1,2 delims==" %%X IN ('FINDSTR "%%A" server.properties') DO (
       SET /a idk+=1
       SET PROP[!idk!]=%%X
       SET VAL[!idk!]=%%Y
@@ -2955,7 +2955,7 @@ IF NOT DEFINED var (
     IF !entry2! LSS 1 SET entry2=1
     IF !entry2! GTR 4 SET entry2=4
 
-    CALL :serverpropsedit !PROP[%entry1%]! !entry2!
+    CALL :serverpropsedit !PROP[%entry1%]! "!entry2!"
     GOTO :editserverprops
   )
 
@@ -2971,7 +2971,7 @@ IF NOT DEFINED var (
   )
 
   :: Uses the serverpropsedit function to edit the server.properties file
-  CALL :serverpropsedit !PROP[%entry1%]! !entry2!
+  CALL :serverpropsedit !PROP[%entry1%]! "!entry2!"
 
   :: If changed property is server-port then update the PORT variable. Must be done here because any variable setting in the function is discarded.
   IF !PROP[%entry1%]!==server-port SET PORT=!entry2!
@@ -3771,7 +3771,7 @@ IF !MCMAJOR! GTR 16 (ECHO !USEARGS!)>user_jvm_args.txt
 IF !MCMAJOR! LEQ 16 IF EXIST user_jvm_args.txt DEL user_jvm_args.txt
 
 ECHO: & ECHO   %yellow% Generated basic run.sh / run.bat script files^^! %blue%
-IF !MCMAJOR! GTR 16 ECHO   %yellow% JVM Startup arguments were put into user_jvm_arg.txt including ram entry ^(!MAXRAM!^) %blue%
+IF !MCMAJOR! GTR 16 ECHO   %yellow% JVM Startup arguments were put into user_jvm_args.txt including ram entry ^(!MAXRAM!^) %blue%
 ECHO:
 PAUSE
 
@@ -3787,12 +3787,16 @@ setlocal
 SET /a idx=0
 SET changedvalue=N
 
+:: Need to set the second passed parameter as a variable so that we can now strip out the double quotes needed to have passed it here as a string to this function.
+SET VAL_ENTRY=%2
+SET VAL_ENTRY=!VAL_ENTRY:"=!
+
 :: Sets equals sign as a delimeter
 FOR /F tokens^=^1^,^2^ delims^=^= %%A IN (server.properties) DO (
   SET "property[!idx!]=%%A"
   SET "value[!idx!]=%%B"
-  IF "%1"=="%%A" IF "%2" NEQ "%%B" (
-    SET "value[!idx!]=%2"
+  IF "%1"=="%%A" IF "!VAL_ENTRY!" NEQ "%%B" (
+    SET "value[!idx!]=!VAL_ENTRY!"
     SET changedvalue=Y
   )
   SET /a idx+=1
