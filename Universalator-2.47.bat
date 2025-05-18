@@ -180,6 +180,7 @@ IF /I !MAINMENU!==RESTART ( CALL :restarttoggle )
 IF /I !MAINMENU!==LOG ( CALL :logs_view ) ELSE IF /I !MAINMENU!==LOGS ( CALL :logs_view )
 IF /I !MAINMENU!==MODS ( CALL :mods_view )
 IF /I !MAINMENU!==SMOD ( CALL :mods_view )
+IF /I !MAINMENU!==GENRUN ( CALL :gen_run_scripts )
 IF /I !MAINMENU!==PURGE ( CALL :purge_function )
 
 :: If no recognized entries were made then go back to main menu
@@ -206,12 +207,13 @@ ECHO:    %green% PORT %blue%     = CHANGE THE PORT NUMBER USED
 ECHO:    %green% PROPS %blue%    = CHANGE SERVER PROPERTIES
 ECHO:    %green% RESTART %blue%  = TOGGLE AUTOMATIC RESTART ON UNPLANNED SHUTDOWN
 ECHO:    %green% FIREWALL %blue% = CHECK FOR A VALID FIREWALL RULE SETTING FOR JAVA
+ECHO:    %green% GENRUN %blue%   = GENERATE BASIC RUN.SH / RUN.BAT SCRIPTS
 ECHO:    %green% UPNP %blue%     = UPNP PORT FORWARDING MENU
 ECHO:    %green% LOG %blue%      = VIEW THE LAST LOG FILE MADE
 ECHO:    %green% MODS/SMOD%blue% = VIEW ALL FILES ^& FOLDERS IN MODS FOLDER
 ECHO:    %green% MCREATOR %blue% = SCAN MOD FILES FOR MCREATOR MADE MODS
 ECHO:    %green% OVERRIDE %blue% = TOGGLE THE JAVA OVERRIDE STATUS
-ECHO:    %green% ZIP %blue%      = MENU FOR CREATING SERVER PACK ZIP FILE & ECHO: & ECHO:
+ECHO:    %green% ZIP %blue%      = MENU FOR CREATING SERVER PACK ZIP FILE & ECHO:
 :: Instead of yet another entry prompt, goes back to utilize the same main menu prompt and logic.  All-commands menu is really just an alternate main menu display.
 GOTO :allcommandsentry
 
@@ -3713,6 +3715,58 @@ DIR /B "mods\*.jar" 2>nul | FINDSTR "." >nul && (
 EXIT /B
 
 :: END FUNCTIONS TO VIEW LAST LOG FILE / MODS
+
+:: FUNCTION TO GENERATE GENERIC RUN SCRIPTS
+:gen_run_scripts
+
+SET "FORGEFILE="
+
+:: Prepares a file name for the Forge starting JAR if the MC version is the older direct-launch the JAR file type.
+IF !MCMAJOR! LEQ 16 ( DIR /B | FINDSTR ".*!MINECRAFT!-!MODLOADERVERSION!.*jar" 1>nul 2>nul && FOR /F "delims=" %%A IN ('"DIR /B | FINDSTR .*!MINECRAFT!-!MODLOADERVERSION!.*jar 2>nul"') DO set "FORGEFILE=%%A" )
+:: If newer than MC 1.16 tests to see if modloader files have been installed yet.
+IF !MCMAJOR! GTR 16 (
+  IF !MODLOADER!==FORGE IF EXIST libraries/net/minecraftforge/forge/!MINECRAFT!-!MODLOADERVERSION!/unix_args.txt SET FORGEFILE=Y
+  IF !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 IF EXIST libraries/net/neoforged/neoforge/!MODLOADERVERSION!/unix_args.txt SET FORGEFILE=Y
+  IF !MODLOADER!==NEOFORGE IF !MINECRAFT!==1.20.1 IF EXIST libraries/net/neoforged/forge/!MINECRAFT!-!MODLOADERVERSION!/unix_args.txt SET FORGEFILE=Y
+)
+IF NOT DEFINED FORGEFILE (
+  ECHO: & ECHO   %red% !MODLOADER!-!MODLOADERVERSION! Files are not installed! %blue% & ECHO   %yellow% Do a LAUNCH to install those files first, before running this command to generate basic run scripts. %blue% & ECHO:
+  PAUSE
+  EXIT /B
+)
+
+:: Generates the run.sh and run.bat scripts, overwrites the files every time completely.  Still just use user_jvm_arg.txt even for MC versions 1.16 and older.
+(
+  ECHO #!/usr/bin/env sh
+  IF !MODLOADER!==FORGE IF !MCMAJOR! LEQ 16 ECHO java @user_jvm_args.txt -jar !FORGEFILE! nogui
+  IF !MODLOADER!==FORGE IF !MCMAJOR! GTR 16 ECHO java @user_jvm_args.txt @libraries/net/minecraftforge/forge/!MINECRAFT!-!MODLOADERVERSION!/unix_args.txt nogui "$@"
+  IF !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 ECHO java @user_jvm_args.txt @libraries/net/neoforged/neoforge/!MODLOADERVERSION!/unix_args.txt nogui "$@"
+  IF !MODLOADER!==NEOFORGE IF !MINECRAFT!==1.20.1 ECHO java @user_jvm_args.txt @libraries/net/neoforged/forge/!MINECRAFT!-!MODLOADERVERSION!/unix_args.txt nogui "$@"
+)>run.sh
+(
+  ECHO @echo off
+  IF !MODLOADER!==FORGE IF !MCMAJOR! LEQ 16 ECHO java @user_jvm_args.txt -jar !FORGEFILE! nogui
+  IF !MODLOADER!==FORGE IF !MCMAJOR! GTR 16 ECHO java @user_jvm_args.txt @libraries/net/minecraftforge/forge/!MINECRAFT!-!MODLOADERVERSION!/win_args.txt nogui %%*
+  IF !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 ECHO java @user_jvm_args.txt @libraries/net/neoforged/neoforge/!MODLOADERVERSION!/win_args.txt nogui %%*
+  IF !MODLOADER!==NEOFORGE IF !MINECRAFT!==1.20.1 ECHO java @user_jvm_args.txt @libraries/net/neoforged/forge/!MINECRAFT!-!MODLOADERVERSION!/win_args.txt nogui %%*
+  ECHO PAUSE
+)>run.bat
+
+:: If the ARGS setting has not been changed by the user, use no default args for Java 17+.  Newer Java versions are much better at being self-optimizing than older versions.
+:: The user can still totally enter their own custom args if they want!  Or these with literally any tiny number change.
+If !JAVAVERSION! GEQ 17 (
+  IF "!ARGS!"=="-XX:+UseG1GC -Dsun.rmi.dgc.server.gcInterval=2147483646 -XX:+UnlockExperimentalVMOptions -XX:G1NewSizePercent=20 -XX:G1ReservePercent=20 -XX:MaxGCPauseMillis=50 -XX:G1HeapRegionSize=32M" ( SET "USEARGS=" ) ELSE ( SET "USEARGS=!ARGS!" )
+) ELSE ( SET "USEARGS=!ARGS!" )
+:: Makes a final combined args.
+IF DEFINED USEARGS ( SET "USEARGS=!MAXRAM! !USEARGS! !OTHERARGS!" ) ELSE ( SET "USEARGS=!MAXRAM! !OTHERARGS!" )
+:: Dumps the determined JVM args to a user_jvm_args.txt file.
+(ECHO !USEARGS!)>user_jvm_args.txt
+
+ECHO: & ECHO   %yellow% Generated basic run.sh / run.bat script files^^! %blue% & ECHO   %yellow% JVM Startup arguments were put into user_jvm_arg.txt including ram entry ^(!MAXRAM!^) %blue% & ECHO:
+PAUSE
+
+EXIT /B
+:: END FUNCTION TO GENERATE GENERIC RUN SCRIPTS
 
 :: FUNCTIONS FOR UTILITY
 
