@@ -3342,7 +3342,7 @@ SET LOC=%cd:)=]%
 
 SET FOLDER=GOOD
 :: Checks folder location this BAT is being run from for various system folders.  Sends appropriate messages if needed.
-ECHO %LOC% | FINDSTR /i "onedrive documents desktop downloads .minecraft" >nul 2>&1 && SET FOLDER=BAD
+ECHO %LOC% | FINDSTR /i "onedrive documents desktop downloads .minecraft XboxGames" >nul 2>&1 && SET FOLDER=BAD
 ECHO %LOC% | FINDSTR /i "desktop" >nul 2>&1 && SET DESKTOP=Y
 ECHO %LOC% | FINDSTR /C:"Program Files" >nul 2>&1 && SET FOLDER=BAD
 IF "%cd%"=="C:\" SET FOLDER=BAD
@@ -3359,7 +3359,7 @@ IF !DESKTOP! NEQ Y ECHO   %red% DO NOT PUT SERVER FOLDERS INSIDE OF SYSTEM FOLDE
     ECHO: & ECHO:
     ECHO    The folder this is being run from ^(shown above^) was detected to be 
     ECHO    inside a folder or subfolder containing one of these names:  & ECHO:
-    ECHO   'DESKTOP'  'DOCUMENTS' 'ONEDRIVE' 'PROGRAM FILES' 'DOWNLOADS' '.minecraft'
+    ECHO   'DESKTOP'  'DOCUMENTS' 'ONEDRIVE' 'PROGRAM FILES' 'DOWNLOADS' '.minecraft' 'XboxGames'
     ECHO: & ECHO   ---------------------------------------------------------------------- & ECHO:
     ECHO    Servers should not run in these folders because it can cause issues with file access by games, system permissions, 
     ECHO    or could be set as cloud storage. 
