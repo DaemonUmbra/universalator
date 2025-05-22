@@ -365,7 +365,7 @@ EXIT /B
 :get_modloader_metadatafile
 :try_get_metadatafileagain
 :: If a maven metadata file for whichever modloader type is present - test its age.  Set a default value first so that if no file is found the default will be the same as if the file was returned as being old.
-SET XMLAGE=True
+SET GET_XML=True
 
 If !MODLOADER!==FABRIC (
   SET "METADATAFILE=maven-fabric-metadata.xml"
@@ -387,11 +387,13 @@ IF !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 (
   SET "METADATAFILE=maven-neoforge-metadata.xml"
   SET "METADATAURL=https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml"
 )
+:: GET_XML will only be False if the file exists AND if it's newer than 6 hours.
+IF EXIST "%HERE%\univ-utils\!METADATAFILE!" FOR /F %%G IN ('powershell -Command "Test-Path '!HEREPOWERSHELL!\univ-utils\!METADATAFILE!' -OlderThan (Get-Date).AddHours(-6)"') DO SET GET_XML=%%G
+:: Exits if a new download isn't needed.
+IF !GET_XML! NEQ True ( EXIT /B )
 
-IF EXIST "%HERE%\univ-utils\!METADATAFILE!" FOR /F %%G IN ('powershell -Command "Test-Path '!HEREPOWERSHELL!\univ-utils\!METADATAFILE!' -OlderThan (Get-Date).AddHours(-6)"') DO SET XMLAGE=%%G
-
-:: If XMLAGE is True then a new maven metadata file is obtained.  Any existing is silently deleted.  If the maven is unreachable by ping then no file delete and download is done, so any existing old file is preserved.
-IF /I !XMLAGE!==True (
+:: If GET_XML is True then a new maven metadata file is obtained.  Any existing is silently deleted.  If the maven is unreachable by ping then no file delete and download is done, so any existing old file is preserved.
+IF /I !GET_XML!==True (
     DEL "%HERE%\univ-utils\!METADATAFILE!" >nul 2>&1
     :: Does a DNS resolving check and ping check for whichever modloader type.
     CALL :resolve_n_ping
@@ -401,13 +403,35 @@ IF /I !XMLAGE!==True (
 )
 
 :: If script gets here then either no maven metadata file ever existed, or an old file was deleted, and none was obtained from the maven either due to download problems or because the maven is offline.
-IF NOT EXIST "%HERE%\univ-utils\!METADATAFILE!" (
-CLS
-ECHO: & ECHO: & ECHO: & ECHO   %red% OOPS %blue% - %yellow% A DOWNLOAD OF THE MAVEN METADATA FILE WAS ATTEMPTED FOR THE %green% !MODLOADER! %yellow% FILE SERVER %blue% & ECHO:
-ECHO   %yellow% BUT THE FILE WAS NOT FOUND AFTER THE DOWNLOAD ATTEMPT. %blue%
-ECHO   %yellow% MAYBE YOUR WINDOWS USER DOES NOT HAVE SUFFIENT PERMISSIONS?  OR YOU MAY HAVE AN OVERLY AGGRESSIVE ANTIVIRUS PROGRAM. %blue% & ECHO: & ECHO   %yellow% PRESS ANY KEY TO START OVER. %blue% & ECHO: & ECHO: & ECHO:
-PAUSE
-GOTO :try_get_metadatafileagain
+IF EXIST "%HERE%\univ-utils\!METADATAFILE!" (
+  :: If file exists, does a checksum on the installer to see if it downloaded correctly.
+  SET "VALID_CHECKSUM="
+  FOR /F "delims=" %%A IN ('curl -s !METADATAURL!.md5') DO SET "VALID_CHECKSUM=%%A"
+  IF DEFINED VALID_CHECKSUM (
+    SET /a idx=0
+    FOR /F %%F IN ('certutil -hashfile univ-utils\!METADATAFILE! MD5') DO (
+      SET FOUT[!idx!]=%%F
+      SET /a idx+=1
+    )
+    SET FILE_CHECKSUM=!FOUT[1]!
+    IF !VALID_CHECKSUM! NEQ !FILE_CHECKSUM! (
+      CLS
+      ECHO: & ECHO: & ECHO   !METADATAFILE! FILE CHECKSUM MISMATCH - LIKELY CORRUPTED DOWNLOAD
+      ECHO   '!VALID_CHECKSUM!'
+      ECHO   '!FOUT[1]!'
+      ECHO   PRESS ANY KEY TO TRY AGAIN & ECHO: & ECHO:
+      PAUSE
+      DEL univ-utils\!METADATAFILE!
+      GOTO :try_get_metadatafileagain
+    )
+  )
+) ELSE (
+  CLS
+  ECHO: & ECHO: & ECHO: & ECHO   %red% OOPS %blue% - %yellow% A DOWNLOAD OF THE MAVEN METADATA FILE WAS ATTEMPTED FOR THE %green% !MODLOADER! %yellow% FILE SERVER %blue% & ECHO:
+  ECHO   %yellow% BUT THE FILE WAS NOT FOUND AFTER THE DOWNLOAD ATTEMPT. %blue%
+  ECHO   %yellow% MAYBE YOUR WINDOWS USER DOES NOT HAVE SUFFIENT PERMISSIONS?  OR YOU MAY HAVE AN OVERLY AGGRESSIVE ANTIVIRUS PROGRAM. %blue% & ECHO: & ECHO   %yellow% PRESS ANY KEY TO START OVER. %blue% & ECHO: & ECHO: & ECHO:
+  PAUSE
+  GOTO :try_get_metadatafileagain
 )
 EXIT /B
 :: END FUNCTION TO GET THE MAVEN METADATA FILE FOR WHICHEVER MODLOADER IS SET
@@ -1169,10 +1193,10 @@ IF /I !MODLOADER!==FORGE (
 )
 
 :: At this point assume the JAR file or libaries folder does not exist and installation is needed.
-IF /I !MODLOADER!==FORGE ECHO   Existing Forge !FORGE! files installation not detected. & ECHO:
-IF /I !MODLOADER!==NEOFORGE ECHO   Existing Neoforge !NEOFORGE! files installation not detected. & ECHO:
+IF /I !MODLOADER!==FORGE ECHO: & ECHO   Existing Forge !FORGE! files installation not detected. & ECHO:
+IF /I !MODLOADER!==NEOFORGE ECHO: & ECHO   Existing Neoforge !NEOFORGE! files installation not detected. & ECHO:
 %DELAY%
-ECHO: & ECHO   Beginning !MODLOADER! !MODLOADERVERSION! installation & ECHO:
+ECHO   Beginning !MODLOADER! !MODLOADERVERSION! installation & ECHO:
 %DELAY%
 
 
@@ -1215,7 +1239,8 @@ IF %ERRORLEVEL% NEQ 0 (
 IF /I !MODLOADER!==FORGE SET "INSTALLER_URL=https://maven.minecraftforge.net/net/minecraftforge/forge/!FORGEFILENAMEORDER!/forge-!FORGEFILENAMEORDER!-installer.jar"
 IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT!==1.20.1 SET "INSTALLER_URL=https://maven.neoforged.net/releases/net/neoforged/forge/!MINECRAFT!-!NEOFORGE!/forge-!MINECRAFT!-!NEOFORGE!-installer.jar"
 IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 SET "INSTALLER_URL=https://maven.neoforged.net/releases/net/neoforged/neoforge/!NEOFORGE!/neoforge-!NEOFORGE!-installer.jar"
-
+:: Sets the variable equal to itself to avoid funky expansion issues using it later.
+SET "INSTALLER_URL=!INSTALLER_URL!"
 IF !MODLOADER!==FORGE ECHO   Downloading !MINECRAFT! - Forge - !FORGE! installer file & ECHO:
 IF !MODLOADER!==NEOFORGE ECHO   Downloading !MINECRAFT! - Neoforge - !NEOFORGE! installer file & ECHO:
 %DELAY%
@@ -1226,6 +1251,29 @@ IF NOT EXIST !mod_loader!-!MODLOADERVERSION!-installer.jar (
   %DELAY%
   curl -sLfo !mod_loader!-!MODLOADERVERSION!-installer.jar !INSTALLER_URL! >nul 2>&1
   RENAME !MODLOADER!-!MODLOADERVERSION!-installer.jar !mod_loader!-!MODLOADERVERSION!-installer.jar >nul 2>&1
+)
+
+:: Does a checksum on the installer to see if it downloaded correctly.
+SET "VALID_CHECKSUM="
+FOR /F "delims=" %%A IN ('curl -s !INSTALLER_URL!.sha256') DO SET "VALID_CHECKSUM=%%A"
+
+IF DEFINED VALID_CHECKSUM (
+  set /a idx=0
+  FOR /F %%F IN ('certutil -hashfile !mod_loader!-!MODLOADERVERSION!-installer.jar SHA256') DO (
+    set FOUT[!idx!]=%%F
+    set /a idx+=1
+  )
+  SET FILE_CHECKSUM=!FOUT[1]!
+  IF !VALID_CHECKSUM! NEQ !FILE_CHECKSUM! (
+    ECHO: & ECHO   !MODLOADER!-!MODLOADERVERSION! INSTALLER CHECKSUM MISMATCH - LIKELY CORRUPTED DOWNLOAD
+    ECHO   PRESS ANY KEY TO TRY AGAIN
+    PAUSE
+    DEL !mod_loader!-!MODLOADERVERSION!-installer.jar
+    GOTO :detectforge
+  ) ELSE (
+    ECHO   Installer file sha256 checksum passed - file is correctly downloaded^^! & ECHO:
+    %DELAY%
+  )
 )
 
 :: Checks if installer file was successfully obtained.  If test not passed then error message and goes back to the pingforgeagain label to try downloading process again.
@@ -1328,11 +1376,9 @@ IF %ERRORLEVEL% NEQ 0 (
 
 :: Download and verify installer
 IF EXIST !LOADERTYPE!-installer.jar DEL !LOADERTYPE!-installer.jar
-IF EXIST !LOADERTYPE!-installer.jar.sha256 DEL !LOADERTYPE!-installer.jar.sha256
 
 FOR /F %%A IN ('powershell -Command "$url = '!MAVENURL!/maven-metadata.xml'; $data =[xml](New-Object System.Net.WebClient).DownloadString($url); $data.metadata.versioning.release"') DO SET "INSTALLER=%%A"
 powershell -Command "(New-Object Net.WebClient).DownloadFile('!MAVENURL!/!INSTALLER!/!LOADERTYPE!-installer-!INSTALLER!.jar', '!LOADERTYPE!-installer.jar')" >nul
-powershell -Command "(New-Object Net.WebClient).DownloadFile('!MAVENURL!/!INSTALLER!/!LOADERTYPE!-installer-!INSTALLER!.jar.sha256', '!LOADERTYPE!-installer.jar.sha256')" >nul
 
 IF NOT EXIST !LOADERTYPE!-installer.jar (
     ECHO Something went wrong downloading the !LOADERTYPE! Installer file.
@@ -1342,22 +1388,27 @@ IF NOT EXIST !LOADERTYPE!-installer.jar (
     GOTO :preparefabricquilt
 )
 
-:: Verify checksum
-SET /P INSTALLERVAL=<!LOADERTYPE!-installer.jar.sha256
-set /a idf=0
-FOR /F %%F IN ('certutil -hashfile !LOADERTYPE!-installer.jar SHA256') DO (
-    set FOUT[!idf!]=%%F
-    set /a idf+=1
-)
-SET installerhecksum=!FOUT[1]!
+:: Does a checksum on the installer to see if it downloaded correctly.
+SET "VALID_CHECKSUM="
+FOR /F "delims=" %%A IN ('curl -s !MAVENURL!/!INSTALLER!/!LOADERTYPE!-installer-!INSTALLER!.jar.sha256') DO SET "VALID_CHECKSUM=%%A"
 
-IF NOT "!INSTALLERVAL!"=="!installerhecksum!" (
-    DEL !LOADERTYPE!-installer.jar
-    ECHO !LOADERTYPE! INSTALLER CHECKSUM MISMATCH - LIKELY CORRUPTED DOWNLOAD
-    ECHO PRESS ANY KEY TO TRY AGAIN
+IF DEFINED VALID_CHECKSUM (
+  set /a idx=0
+  FOR /F %%F IN ('certutil -hashfile !LOADERTYPE!-installer.jar SHA256') DO (
+    set FOUT[!idx!]=%%F
+    set /a idx+=1
+  )
+  SET FILE_CHECKSUM=!FOUT[1]!
+  IF !VALID_CHECKSUM! NEQ !FILE_CHECKSUM! (
+    ECHO: & ECHO   !LOADERTYPE! INSTALLER CHECKSUM MISMATCH - LIKELY CORRUPTED DOWNLOAD
+    ECHO   PRESS ANY KEY TO TRY AGAIN & ECHO:
     PAUSE
-    CLS
+    DEL !LOADERTYPE!-installer.jar
     GOTO :preparefabricquilt
+  ) ELSE (
+    ECHO: & ECHO   !MODLOADER! Installer file sha256 checksum passed - file is correctly downloaded^^! & ECHO:
+    %DELAY%
+  )
 )
 
 :: Install the Fabric or Quilt server files using the installer downloaded
@@ -1367,7 +1418,6 @@ IF /I !MODLOADER!==QUILT "!JAVAFILE!" -XX:+UseG1GC -jar !LOADERTYPE!-installer.j
 
 :: Cleanup and rename
 DEL !LOADERTYPE!-installer.jar 2>nul
-DEL !LOADERTYPE!-installer.jar.sha256 2>nul
 IF EXIST !LOADERTYPE!-server-launch.jar RENAME !LOADERTYPE!-server-launch.jar !LOADERTYPE!-server-launch-!MINECRAFT!-!MODLOADERVERSION!.jar
 
 IF NOT EXIST !LOADERTYPE!-server-launch-!MINECRAFT!-!MODLOADERVERSION!.jar (
@@ -1674,9 +1724,9 @@ IF DEFINED RESTART IF !RESTART!==Y IF EXIST "logs\latest.log" FINDSTR /I "Stoppi
 
 REM Go to common scan logs section
 CALL :logsscan
-
-REM After all above is finished, head back to the main menu.
 PAUSE
+REM After all above is finished, head back to the main menu.
+
 GOTO :mainmenu
 
 REM END LAUNCH SERVER SECTION
@@ -2742,46 +2792,48 @@ GOTO :zipit2
 :logsscan
 IF NOT EXIST "%HERE%\logs\latest.log" GOTO :skiplogchecking
 :: Looks for the stopping the server text to decide if the server was shut down on purpose.  If so goes to main menu and do not bother checking anything else.
-TYPE "%HERE%\logs\latest.log" | FINDSTR /I /C:"Stopping the server" 1>nul 2>nul && GOTO :skiplogchecking
+FINDSTR /I /C:"Stopping the server" "logs\latest.log" 1>nul 2>nul && GOTO :skiplogchecking
 
-TYPE "%HERE%\logs\latest.log" | FINDSTR /I /C:"Unsupported class file major version" 1>nul 2>nul && (
-  ECHO: & ECHO        %red% --SPECIAL NOTE-- %blue%
+FINDSTR /I /C:"Unsupported class file major version" "logs\latest.log" 1>nul 2>nul && (
+  ECHO: & ECHO   %red% --SPECIAL NOTE-- %blue%
   ECHO    %yellow% FROM SCANNING THE LOGS IT LOOKS LIKE YOUR SERVER MAY HAVE CRASHED FOR ONE OF TWO REASONS:  %blue%
   ECHO    %yellow% --YOUR SELECTED JAVA VERSION IS NOT COMPATIBLE WITH THE CURRENT FORGE VERSION OR MOD FILE^(S^) %blue%
   ECHO    %yellow% --AT LEAST ONE MOD FILE IN THE MODS FOLDER IS MEANT FOR A DIFFERENT VERSION OF FORGE / MINECRAFT %blue% & ECHO:
-  ECHO        %red% --SPECIAL NOTE-- %blue% & ECHO:
+  ECHO   %red% --SPECIAL NOTE-- %blue% & ECHO:
 )
 
-:: Tests two different strings with spaces.  Nulls both STDOUT and STDERR, only looking for an ERRORLEVEL value.
-FOR %%T IN ("invalid dist DEDICATED_SERVER" "Attempting to load a clientside only mod") DO (
-  TYPE "%HERE%\logs\latest.log" | FINDSTR /I /C:%%T 1>nul 2>nul && (
-    ECHO: & ECHO        %red% --- SPECIAL NOTE --- %blue%
-    ECHO    THE TEXT %%T WAS FOUND IN THE LOG FILE
-    ECHO    This could %yellow% MAYBE %blue% mean you have CLIENT SIDE mods crashing the server. & ECHO:
-    ECHO   %yellow% TRY USING THE UNIVERSALATOR %green% 'SCAN' %yellow% OPTION TO FIND CLIENT MODS. %blue% & ECHO:
-    ECHO   There are a lot of other reasons which could be causing the server to crash.
-    ECHO   If you have already done a client mod SCAN, look through the logs carefully to try to find whether the issue
-    ECHO   really are client side mods, %yellow% OR another DIFFERENT issue. %blue% & ECHO:
-    ECHO   %yellow% If you think you have found a client side mod which is not on the list of mods to find and remove with SCAN, %blue%
-    ECHO   %yellow% you can report it on the project Github 'issues', or Discord, and it can be added to the list. %blue%
-    ECHO: & ECHO        %red% --- SPECIAL MESSAGE --- %blue% & ECHO:
-    GOTO :outofclientmessage
+:: Tests for the specific strings that happen when Forge or Neoforge tries to automatically detect and report client-side mods, this only happens for newer versions of the game.
+FINDSTR /I /C:"invalid dist DEDICATED_SERVER" "logs\latest.log" 1>nul 2>nul && FINDSTR /I /C:"Loading errors encountered" "logs\latest.log" 1>nul 2>nul && FINDSTR /I /C:"has failed to load correctly" "logs\latest.log" 1>nul 2>nul && (
+
+  ECHO: & ECHO   %red% --- SPECIAL NOTE --- %blue% & ECHO:
+  ECHO   %yellow% Log scanning has detected that you might have CLIENT-SIDE mods crashing the server. %blue%
+  ECHO   %yellow% YOU CAN TRY USING THE UNIVERSALATOR %green% 'SCAN' %yellow% OPTION TO FIND AND REMOVE ALL CLIENT MODS. %blue% & ECHO:
+  ECHO   %yellow% If you've %red% ALREADY tried the SCAN option %yellow%, and the list below STILL lists CLIENT-SIDE mods, %blue%
+  ECHO   %yellow%   you can report them on the Universalator Github or Discord to be added to the ^> %red% CLIENT-SIDE MODS LIST, %blue%
+  ECHO   %yellow%   and delete the mod files from your 'mods' folder. %blue% & ECHO:
+  ECHO         %red% Suspected CLIENT-SIDE mods: %blue%
+  FOR /F "delims=" %%A IN ('FINDSTR /I /C:"has failed to load correctly" "logs\latest.log"') DO (
+    SET "TEMP=%%A"
+    SET "TEMP=!TEMP: has failed to load correctly=!"
+    SET "TEMP=!TEMP:%TABCHAR%=!"
+    ECHO         %yellow% !TEMP! %blue%
   )
+   ECHO: & ECHO   %red% --- SPECIAL NOTE --- %blue% & ECHO:
+   EXIT /B
 )
-:outofclientmessage
 
-TYPE "%HERE%\logs\latest.log" | FINDSTR /I /C:"FAILED TO BIND TO PORT" 1>nul 2>nul && (
-  ECHO: & ECHO        %red% --- SPECIAL NOTE --- %blue% & ECHO:
+FINDSTR /I /C:"FAILED TO BIND TO PORT" "logs\latest.log" 1>nul 2>nul && (
+  ECHO: & ECHO   %red% --- SPECIAL NOTE --- %blue% & ECHO:
   ECHO   %yellow% THE TEXT %red%'FAILED TO BIND TO PORT'%yellow% WAS FOUND IN THE LOG FILE %blue%
   ECHO   %yellow% THIS MEANS THAT ANOTHER PROGRAM / PROCESS IS CURRENTLY USING THE PORT %blue% 
   ECHO   %yellow% SET IN SETTINGS- MAYBE ANOTHER SERVER? %blue%
   ECHO: & ECHO   %yellow% IF YOU CANNOT SEEM TO CLOSE WHATEVER THE PROGRAM IS - RESTART YOUR COMPUTER AND TRY LAUNCHING AGAIN. %blue%
   ECHO:
-  ECHO        %red% --- SPECIAL MESSAGE --- %blue% & ECHO:
+  ECHO   %red% --- SPECIAL MESSAGE --- %blue% & ECHO:
 )
 
-TYPE "%HERE%\logs\latest.log" | FINDSTR /I /C:"Missing or unsupported mandatory dependencies:" 1>nul 2>nul && (
-  ECHO: & ECHO        %red% --- SPECIAL NOTE --- %blue%
+FINDSTR /I /C:"Missing or unsupported mandatory dependencies:" "logs\latest.log" 1>nul 2>nul && (
+  ECHO: & ECHO   %red% --- SPECIAL NOTE --- %blue%
   ECHO   %red% A TEXT MESSAGE WAS FOUND IN YOUR LOG SAYING THAT YOU HAVE EITHER OF THE FOLLOWING ISSUES^: %blue% & ECHO:
   ECHO   %yellow% - Missing required dependency or library mods %blue% 
   ECHO   %yellow% - Not new enough versions for library or dependency mods  %blue%
@@ -2796,16 +2848,16 @@ TYPE "%HERE%\logs\latest.log" | FINDSTR /I /C:"Missing or unsupported mandatory 
   ECHO: & ECHO   %red% READ THE LINES LISTED AND SORT OUT THE ISSUES THEY SAY EXIST. %blue% 
   ECHO   %yellow% SET IN SETTINGS- MAYBE ANOTHER SERVER? %blue%
   ECHO: & ECHO   %yellow% IF YOU CANNOT SEEM TO CLOSE WHATEVER THE PROGRAM IS - RESTART YOUR COMPUTER AND TRY LAUNCHING AGAIN. %blue% & ECHO:
-  ECHO        %red% --- SPECIAL MESSAGE --- %blue% & ECHO:
+  ECHO   %red% --- SPECIAL MESSAGE --- %blue% & ECHO:
 )
 
-TYPE "%HERE%\logs\latest.log" | FINDSTR /I /C:"Tried to read NBT tag with too high complexity, depth > 512" "latest.log" 1>nul 2>nul && (
-  ECHO: & ECHO        %red% --- SPECIAL NOTE --- %blue%
+FINDSTR /I /C:"Tried to read NBT tag with too high complexity, depth > 512" "latest.log" "logs\latest.log" 1>nul 2>nul && (
+  ECHO: & ECHO   %red% --- SPECIAL NOTE --- %blue%
   ECHO   %red% THE MESSAGE STRING 'Tried to read NBT tag with too high complexity, depth ^> 512' WAS FOUND %blue% & ECHO:
   ECHO   You have items or entities which are storing too much NBT data than the game will allow. %blue%
   ECHO   Common causes are items such as backpacks, or other storage items or blocks which have been filled with too many items. %blue% & ECHO:
   ECHO   * If it has files published for your Minecraft version / Modloader, try adding the mod - %yellow% 'LONG NBT KILLER' %blue% & ECHO:
-  ECHO        %red% --- SPECIAL MESSAGE --- %blue% & ECHO:
+  ECHO   %red% --- SPECIAL MESSAGE --- %blue% & ECHO:
 )
 
 ECHO: & ECHO   IF THIS MESSAGE IS VISIBLE SERVER MAY HAVE CRASHED / STOPPED & ECHO: & ECHO   CHECK LOG FILES - PRESS ANY KEY TO GO BACK TO MAIN MENU & ECHO:
@@ -3695,6 +3747,7 @@ EXIT /B
 CLS
 ECHO: & ECHO:
 TYPE "logs\latest.log"
+CALL :logsscan
 ECHO: & ECHO:
 PAUSE
 EXIT /B
