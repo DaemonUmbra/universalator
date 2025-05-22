@@ -2142,7 +2142,7 @@ ECHO:%yellow%
 ECHO ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ECHO      UPNP PORT FORWARDING MENU    
 ECHO ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~%blue%
-ECHO: & ECHO:
+ECHO:
 IF NOT EXIST "%HERE%\univ-utils\Portforwarded\Portforwarded.Server.exe" (
 ECHO   %yellow% 'Portforwarded.Server' PROGRAM %blue% - %red% NOT YET INSTALLED / DOWNLOADED %blue% & ECHO:
 ECHO   * Port forwarding done in one way or another is requied for people outside your router network to connect.
@@ -2174,12 +2174,15 @@ IF EXIST "%HERE%\univ-utils\Portforwarded\Portforwarded.Server.exe" (
 )
 
 IF EXIST "%HERE%\univ-utils\Portforwarded\Portforwarded.Server.exe" (
-ECHO   %yellow% Portforwarded.Server PROGRAM %blue% - %green% DOWNLOADED %blue% & ECHO:
+ECHO   %yellow% Portforwarded.Server PROGRAM %blue% - %green% DOWNLOADED %blue% 
+FOR /F "delims=" %%A IN ('dotnet --version') DO ( SET "DOTNETVERSION=%%A" )
+ECHO   %yellow% Microsoft DOTNET version     %blue% - %green% !DOTNETVERSION! %blue% & ECHO.
+ECHO:
 ECHO   %yellow% PROTOCOL    %blue% -  %green% %PROTOCOL% %blue%
-IF !USEPORTFORWARDED!==N ECHO   %yellow% UPNP STATUS %blue% -  %red% NOT ACTIVE - WILL NOT USE UPNP PORT FORWARDING %blue% & ECHO                    %red% 'A' - TO ACTIVATE %yellow% OR %red% SET UP AND USE MANUAL NETWORK ROUTER PORT FORWARDING %blue% & ECHO:
-IF "!PROTOCOL!"=="TCP" IF !USEPORTFORWARDED!==Y  ECHO   %yellow% UPNP STATUS %blue% -  %green% ACTIVE - WILL FORWARD PORT - TCP !PORT! %blue% & ECHO:
-IF "!PROTOCOL!"=="BOTH" IF !USEPORTFORWARDED!==Y  ECHO   %yellow% UPNP STATUS %blue% -  %green% ACTIVE - WILL FORWARD PORT - TCP !PORT! / UDP !PORTUDP! %blue% & ECHO:
-IF "!PROTOCOL!"=="UDP" IF !USEPORTFORWARDED!==Y  ECHO   %yellow% UPNP STATUS %blue% -  %green% ACTIVE - WILL FORWARD PORT - UDP !PORTUDP! %blue% & ECHO:
+IF !USEPORTFORWARDED!==N ECHO   %yellow% UPNP STATUS %blue% -  %red% NOT ACTIVE - WILL NOT USE UPNP PORT FORWARDING %blue% & ECHO                    %red% 'A' - TO ACTIVATE %yellow% OR %red% SET UP AND USE MANUAL NETWORK ROUTER PORT FORWARDING %blue%
+IF "!PROTOCOL!"=="TCP" IF !USEPORTFORWARDED!==Y  ECHO   %yellow% UPNP STATUS %blue% -  %green% ACTIVE - WILL FORWARD PORT - TCP !PORT! %blue%
+IF "!PROTOCOL!"=="BOTH" IF !USEPORTFORWARDED!==Y  ECHO   %yellow% UPNP STATUS %blue% -  %green% ACTIVE - WILL FORWARD PORT - TCP !PORT! / UDP !PORTUDP! %blue%
+IF "!PROTOCOL!"=="UDP" IF !USEPORTFORWARDED!==Y  ECHO   %yellow% UPNP STATUS %blue% -  %green% ACTIVE - WILL FORWARD PORT - UDP !PORTUDP! %blue%
 IF !SHOWIP!==Y ECHO                                                               %yellow% Local IP:port  %blue% - !LOCALIP!:%PORT%
 IF !SHOWIP!==Y ECHO                                                               %yellow% Public IP:port %blue% - !PUBLICIP!:%PORT%
 IF !SHOWIP!==N ECHO:
@@ -2385,8 +2388,10 @@ CLS
 ECHO: & ECHO: & ECHO:
 ECHO   %cyan% Checking for UPnP Enabled Network Router ... .. . %blue% & ECHO:
 ECHO   %cyan% Checking for UPnP Enabled Network Router .. . %blue% & ECHO: & ECHO: & ECHO:
-ECHO   %yellow% *If this hangs up forever then your network router may either not have UPnP or it is disabled. %blue%
-ECHO   %yellow%  If UPnP is not working for you - watch this video on how to port forward your network router^: %blue% & ECHO:
+ECHO   %yellow% *If this hangs up forever^: %blue%
+ECHO   %yellow%    - Your Microsoft DOTNET version is !DOTNETVERSION!, if it's version 5.x or older you can update to the newest 8.0 or 9.0 %blue%
+ECHO   %yellow%    - Your network router may either not have UPnP or it is disabled. %blue% & ECHO: & ECHO:
+ECHO   %yellow%  If UPnP is not working for you - watch this video on how to port forward your network router^: %blue%
 ECHO   %yellow% ^(CTRL+click opens^) - https://www.youtube.com/watch?v=1w-Eqi9Vt24^&t=18s %blue% & ECHO: & ECHO:
 
 :: Need to use a java verion to use the Portforwarded.Server test - any java will do since old MC 1.4.2 will be use as the tester.  If this finds a java in PATH just go with it.
@@ -2513,25 +2518,10 @@ EXIT /B
 :: END UPNP DEACTIVATE PORT FORWARD
 
 :: FUNCITON TO UPNP - UPNP FILE DOWNLOAD
-:upnp_download
 :upnpdownload
-CLS
-ECHO: & ECHO:
-ECHO  %yellow% DOWNLOAD Portforwarded.Server PROGRAM? %blue% & ECHO:
-ECHO  ENTERING 'Y' WILL DOWNLOAD THE Portforwarded.Server PROGRAM FROM THAT PROJECTS WEBSITE ON GITHUB: & ECHO:
-ECHO   https://github.com/itssimple/Portforwarded.Server & ECHO:
-ECHO   Portforwarded.Server is published with the MIT / open source license. & ECHO:
-ECHO  %yellow% DOWNLOAD Portforwarded.Server PROGRAM? %blue% & ECHO:
-ECHO   ENTER YOUR CHOICE: & ECHO:
-ECHO   %green%  'Y' - Download file %blue%
-ECHO   %green%  'N' - NO  ^(Back to UPNP menu^) %blue% & ECHO:
-SET /P SCRATCH="%blue%  %green% ENTRY: %blue% " <nul
-SET /P "ASKUPNPDOWNLOAD="
-IF /I !ASKUPNPDOWNLOAD! NEQ N IF /I !ASKUPNPDOWNLOAD! NEQ Y GOTO :upnpdownload
-IF /I !ASKUPNPDOWNLOAD!==N EXIT /B 1
 :try_upnp_download
 :: If download is chosen - download the Portforwarded Windows client ZIP file, License.  Then unzip out only the Portforwarded.Server.exe
-IF /I !ASKUPNPDOWNLOAD!==Y IF NOT EXIST "%HERE%\univ-utils\Portforwarded\Portforwarded.Server.exe" (
+IF NOT EXIST "%HERE%\univ-utils\Portforwarded\Portforwarded.Server.exe" (
   CLS
   ECHO: & ECHO: & ECHO   Downloading ZIP file ... ... ... & ECHO:
   IF NOT EXIST "%HERE%\univ-utils\Portforwarded" MD "%HERE%\univ-utils\Portforwarded"
