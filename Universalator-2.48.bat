@@ -2014,9 +2014,7 @@ FOR /L %%f IN (0,1,!SERVERMODSCOUNT!) DO (
   SET "SERVERMODS[%%f].deps=!SERVERMODS[%%f].deps: =!"
   IF /I !SERVERMODS[%%f].environ!==client SET FOUNDFABRICCLIENTS=Y
   REM Overrides to client any modIDs listed - for popular mods which are not marked correctly in their fabric.mod.json (or need their code fixed)
-  FOR %%A IN (e4mc_minecraft) DO (
-    ECHO !SERVERMODS[%%f].id! | FINDSTR %%A && ( SET FOUNDFABRICCLIENTS=Y & SET "SERVERMODS[%%f].environ=client" )
-  )
+  ECHO !SERVERMODS[%%f].id! | FINDSTR /I "e4mc_minecraft moremcmeta_emissive_plugin mainhandswitch mobility notifyme removewardeneffect sparkle vs-wakes-compat wakes zoomify" >nul && ( SET FOUNDFABRICCLIENTS=Y & SET "SERVERMODS[%%f].environ=client" )
 )
 
 REM Goes to the no clients found message.  If any environment client mods were found this trigger variable will be Y instead.
