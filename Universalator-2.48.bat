@@ -3405,7 +3405,7 @@ FOR /F "usebackq delims=" %%A IN (`powershell -Command "$space = (Get-CimInstanc
 :: Returns the percent of hard drive space free
 FOR /F "delims=" %%A IN ('powershell -Command "$data = try { get-psdrive %CD:~0,1% } catch { $null }; if($data) { $result = [math]::Round(($data.used/($data.free+$data.used)) * 100) }; $result"') DO SET "DISKPERCENT=%%A"
 
-IF DEFINED DISKPERCENT IF !DISKPERCENT! GEQ 30 SET "DISKWORRY=Y"
+IF DEFINED DISKPERCENT IF !DISKPERCENT! GEQ 95 SET "DISKWORRY=Y"
 
 
 :: If either of the above is of concern then show a bypassable warning message
