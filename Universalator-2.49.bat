@@ -107,10 +107,8 @@ SET /a RESTARTCOUNT=0
 
 SET "MAINMENU="
 CLS
-ECHO:%yellow%
-ECHO ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-ECHO    Welcome to the Universalator - A modded Minecraft server installer / launcher    
-ECHO ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~%blue%
+ECHO:
+%UNIV_HEADER%
 ECHO:
 ECHO   %yellow% CURRENT SETTINGS %blue%
 ECHO:
@@ -190,10 +188,8 @@ GOTO :mainmenu
 :allcommands
 CLS
 ECHO:%yellow%
-ECHO ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-ECHO    Welcome to the Universalator - A modded Minecraft server installer / launcher    
-ECHO ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~%blue%
-ECHO: & ECHO: & ECHO:
+%UNIV_HEADER%
+ECHO:
 ECHO:    %green% M %blue% = MAIN MENU
 ECHO:    %green% S %blue% = RE-ENTER ALL SETTINGS
 ECHO:    %green% L %blue% = LAUNCH SERVER
@@ -204,7 +200,7 @@ ECHO:    %green% Q %blue% = QUIT
 ECHO:
 ECHO:    %green% SCAN %blue%     = SCAN MOD FILES FOR CLIENT ONLY MODS
 ECHO:    %green% PORT %blue%     = CHANGE THE PORT NUMBER USED
-ECHO:    %green% PROPS %blue%    = CHANGE SERVER PROPERTIES
+ECHO:    %green% PROPS %blue%    = CHANGE SERVER PROPERTIES FILE
 ECHO:    %green% RESTART %blue%  = TOGGLE AUTOMATIC RESTART ON UNPLANNED SHUTDOWN
 ECHO:    %green% FIREWALL %blue% = CHECK FOR A VALID FIREWALL RULE SETTING FOR JAVA
 ECHO:    %green% GENRUN %blue%   = GENERATE BASIC RUN.SH / RUN.BAT SCRIPTS
@@ -263,9 +259,7 @@ GOTO :mainmenu
 CLS
 IF NOT EXIST settings-universalator.txt (
 ECHO:%yellow%
-ECHO ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-ECHO    Welcome to the Universalator - A modded Minecraft server installer / launcher    
-ECHO ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~%blue%
+%UNIV_HEADER%
 ECHO: & ECHO:
 ECHO    %green% Settings can be changed from main menu once all initial settings have been entered %blue%
 ) ELSE (
@@ -325,9 +319,7 @@ EXIT /B
 CLS
 IF NOT EXIST settings-universalator.txt (
 ECHO:%yellow%
-ECHO ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-ECHO    Welcome to the Universalator - A modded Minecraft server installer / launcher    
-ECHO ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~%blue%
+%UNIV_HEADER%
 ECHO: & ECHO:
 ECHO    %green% Settings can be changed from main menu once all settings have been entered %blue%
 ) ELSE (
@@ -512,9 +504,7 @@ FOR /F %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWER
   CLS
   IF NOT EXIST settings-universalator.txt (
   ECHO:%yellow%
-  ECHO ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  ECHO    Welcome to the Universalator - A modded Minecraft server installer / launcher    
-  ECHO ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~%blue%
+  %UNIV_HEADER%
   ECHO:
   ECHO    %green% Settings can be changed from main menu once all settings have been entered %blue%
     ) ELSE (
@@ -649,9 +639,7 @@ IF !MAVENISSUE!==Y (
 CLS
 IF NOT EXIST settings-universalator.txt (
   ECHO:%yellow%
-  ECHO ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  ECHO    Welcome to the Universalator - A modded Minecraft server installer / launcher    
-  ECHO ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~%blue%
+  %UNIV_HEADER%
   ECHO: & ECHO:
   ECHO    %green% Settings can be changed from main menu once all settings have been entered %blue%
   ) ELSE (
@@ -1805,13 +1793,13 @@ FOR %%J IN ("mods/*.jar") DO ( SET /a SERVERMODSCOUNT+=1 )
 ECHO: & ECHO   %yellow% Found - !SERVERMODSCOUNT! - jar files in 'mods' folder %blue% & ECHO: & ECHO   %yellow% Searching for client only mods... %blue% & ECHO: & ECHO   Please wait... & ECHO:
 
 :: END COMMON CLIENT MOD PRE-SCANNING SECTION
-
+SETLOCAL
 :: Calls whichever type of client mod scanning to be done
 IF !MODLOADER!==FORGE CALL :scanforgeneoforge
 IF !MODLOADER!==NEOFORGE CALL :scanforgeneoforge
 IF !MODLOADER!==FABRIC CALL :scanfabricquilt
 IF !MODLOADER!==QUILT CALL :scanfabricquilt
-
+ENDLOCAL
 EXIT /B
 :: END MAIN FUNCTION TO CHECK FOR CLIENT SIDE MODS
 
@@ -2523,7 +2511,7 @@ IF NOT EXIST "%HERE%\univ-utils\Portforwarded\Portforwarded.Server.exe" (
   CLS
   ECHO: & ECHO: & ECHO   Downloading ZIP file ... ... ... & ECHO:
   IF NOT EXIST "%HERE%\univ-utils\Portforwarded" MD "%HERE%\univ-utils\Portforwarded"
-  powershell -Command "(New-Object Net.WebClient).DownloadFile('https://github.com/itssimple/Portforwarded.Server/releases/download/2.0.1/Portforwarder.Server-2.0.1-win-x64.zip', 'univ-utils\Portforwarded\Portforwarded_release.zip')"
+  powershell -Command "(New-Object Net.WebClient).DownloadFile('https://github.com/itssimple/Portforwarded.Server/releases/download/3.0.0-alpha/Portforwarder.Server-3.0.0-alpha-win-x64.zip', 'univ-utils\Portforwarded\Portforwarded_release.zip')"
   
   IF EXIST "%HERE%\univ-utils\Portforwarded\Portforwarded_release.zip" (
     ECHO   %green% SUCCESSFULLY DOWNLOADED Portforwarded BINARAIES ZIP FILE %blue%
@@ -2546,7 +2534,7 @@ IF NOT EXIST "%HERE%\univ-utils\Portforwarded\Portforwarded.Server.exe" (
     )
     SET FILECHECKSUM=!OUT[1]!
 
-    IF !FILECHECKSUM! NEQ 459b1a811bf985c4ef9a5568a33de71ba7f7e6b3df94671341564f22e1b66a37 (
+    IF !FILECHECKSUM! NEQ 163cdd5f32764bf9c5b70f74eecfca47a71038979ca63bd67fe340a477fd5144 (
       CLS
       ECHO: & ECHO: & ECHO: & ECHO   THE SHA256 CHECKSUM ^(HASH VALUE^) OF THE DOWNLOADED %yellow% Portforwarded.Server.exe %blue% FILE
       ECHO   DID NOT MATCH THE CORRECT VALUE - THE FILE IS CORRUPTED OR ONLY A PARTIAL DOWNLOAD & ECHO:
@@ -3198,7 +3186,21 @@ IF %winmajor% GEQ 10 (
   SET cyan=[34;106m
   SET green=[93;42m
   SET red=[93;101m
+  SET orange=[30;43m
+  SET indigo=[97;45m
+  SET violet=[97;95m
 )
+
+REM Get current month number (1-12) using PowerShell
+FOR /F "delims=" %%A IN ('powershell -Command "Get-Date -Format MM"') DO SET CURRENTMONTH=%%A
+
+REM Use rainbow header for June (month 06), regular header for all other months
+IF !CURRENTMONTH!==06 (
+    SET "UNIV_HEADER=ECHO %red%~~~~~~~~~~~%orange%~~~~~~~~~~~%yellow%~~~~~~~~~~~%green%~~~~~~~~~~~%cyan%~~~~~~~~~~~%indigo%~~~~~~~~~~~%violet%~~~~~~~~~~~~~~~~~~~~%blue% & ECHO %red%  Welcome  %orange%  to  the  %yellow%   Universa%green%lator  -   %cyan% A  modded %indigo%  Minecraft  %violet%server / launcher %blue% & ECHO %red%~~~~~~~~~~~%orange%~~~~~~~~~~~%yellow%~~~~~~~~~~~%green%~~~~~~~~~~~%cyan%~~~~~~~~~~~%indigo%~~~~~~~~~~~%violet%~~~~~~~~~~~~~~~~~~~~%blue%"
+) ELSE (
+    SET "UNIV_HEADER=ECHO %yellow%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~%blue% & ECHO %yellow%   Welcome to the Universalator - A modded Minecraft server installer / launcher    %blue% & ECHO %yellow%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~%blue%"
+)
+
 :: If the Universalator utilities folder doesn't exist then create it.
 IF NOT EXIST univ-utils MD univ-utils
 
@@ -3404,9 +3406,7 @@ ECHO %LOC% | FINDSTR /I "curseforge atlauncher at_launcher gdlauncher gd_launche
 FOR /F "usebackq delims=" %%A IN (`powershell -Command "$space = (Get-CimInstance -ClassName Win32_LogicalDisk -Filter 'DeviceID = ''%~d0''').FreeSpace/1GB; [math]::Round($space)"`) DO ( SET "DISKFREE=%%A" & IF !DISKFREE! LEQ 20 SET DISKWORRY=Y )
 :: Returns the percent of hard drive space free
 FOR /F "delims=" %%A IN ('powershell -Command "$data = try { get-psdrive %CD:~0,1% } catch { $null }; if($data) { $result = [math]::Round(($data.used/($data.free+$data.used)) * 100) }; $result"') DO SET "DISKPERCENT=%%A"
-
 IF DEFINED DISKPERCENT IF !DISKPERCENT! GEQ 95 SET "DISKWORRY=Y"
-
 
 :: If either of the above is of concern then show a bypassable warning message
 IF DEFINED DISKWORRY (
@@ -3737,6 +3737,14 @@ EXIT /B
 :: FUNCTIONS TO VIEW LAST LOG FILE / MODS
 :logs_view
 CLS
+IF NOT EXIST "logs\latest.log" (
+  ECHO: & ECHO:
+  ECHO   %yellow% No log file was found in the 'logs' folder^^! %blue% & ECHO:
+  ECHO   %yellow% If you have not run a server yet, then there will be no log file. %blue% & ECHO:
+  ECHO   %yellow% If you have run a server and this file is missing, then it may have been deleted. %blue% & ECHO:
+  PAUSE
+  EXIT /B
+)
 ECHO: & ECHO:
 TYPE "logs\latest.log"
 CALL :logsscan
