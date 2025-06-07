@@ -85,6 +85,8 @@ CALL :get_license_check_license
 CALL :check_server_properties
 CALL :check_port_settings
 
+:: If no settings file exists but a linux settings file does, try to convert it to a windows settings file.
+IF NOT EXIST settings-universalator.txt IF EXIST settings-linux-universalator.txt ( CALL :convert_linux_settings )
 :: If no settings file exists yet then go directly to entering settings (first setting being Minecraft version)
 IF NOT EXIST settings-universalator.txt ( CALL :settingsentry )
 
@@ -3193,6 +3195,7 @@ IF %winmajor% GEQ 10 (
 
 REM Get current month number (1-12) using PowerShell
 FOR /F "delims=" %%A IN ('powershell -Command "Get-Date -Format MM"') DO SET CURRENTMONTH=%%A
+IF NOT DEFINED CURRENTMONTH SET CURRENTMONTH=01
 
 REM Use rainbow header for June (month 06), regular header for all other months
 IF !CURRENTMONTH!==06 (
@@ -3200,6 +3203,7 @@ IF !CURRENTMONTH!==06 (
 ) ELSE (
     SET "UNIV_HEADER=ECHO %yellow%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~%blue% & ECHO %yellow%   Welcome to the Universalator - A modded Minecraft server installer / launcher    %blue% & ECHO %yellow%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~%blue%"
 )
+
 
 :: If the Universalator utilities folder doesn't exist then create it.
 IF NOT EXIST univ-utils MD univ-utils
@@ -3830,6 +3834,36 @@ PAUSE
 
 EXIT /B
 :: END FUNCTION TO GENERATE GENERIC RUN SCRIPTS
+
+:: FUNCTION TO CONVERT LINUX SETTINGS FILE TO WINDOWS SETTINGS FILE
+:convert_linux_settings
+
+FOR /F "tokens=1,2 delims==" %%A IN ('type settings-linux-universalator.txt') DO (
+  SET "TEMP=%%A"
+  REM IF only looks at non-comment lines
+  IF "!TEMP!"=="!TEMP:#=x!" (
+    SET "VALUE=%%B"
+    SET "VALUE=!VALUE:"=!"
+    IF "!TEMP!"=="MINECRAFT" SET "MINECRAFT=!VALUE!"
+    IF "!TEMP!"=="MODLOADER" SET "MODLOADER=!VALUE!"
+    IF "!TEMP!"=="MODLOADERVERSION" SET "MODLOADERVERSION=!VALUE!"
+    IF "!TEMP!"=="JAVAVERSION" SET "JAVAVERSION=!VALUE!"
+    IF "!TEMP!"=="MAXRAMGIGS" SET "MAXRAMGIGS=!VALUE!"
+    IF "!TEMP!"=="ARGS" SET "ARGS=!VALUE!"
+    IF "!TEMP!"=="PORT" SET "PORT=!VALUE!"
+    IF "!TEMP!"=="PORTUDP" SET "PORTUDP=!VALUE!"
+    IF "!TEMP!"=="PROTOCOL" SET "PROTOCOL=!VALUE!"
+    IF "!TEMP!"=="USEPORTFORWARDED" SET "USEPORTFORWARDED=!VALUE!"
+  )
+)
+REM The Linux version does not have an override setting, so we set it to A by default.
+SET "OVERRIDE=A"
+REM Calls the stamp settings function but only if all of the variables are defined.
+REM If anything is undefined then no settings file is created, and user will be prompted to enter settings.
+IF DEFINED MINECRAFT IF DEFINED MODLOADER IF DEFINED MODLOADERVERSION IF DEFINED JAVAVERSION IF DEFINED MAXRAMGIGS IF DEFINED ARGS IF DEFINED PORT IF DEFINED PORTUDP IF DEFINED PROTOCOL ( CALL :stampsettingsfile )
+
+EXIT /B
+:: END FUNCTION TO CONVERT LINUX SETTINGS FILE TO WINDOWS SETTINGS FILE
 
 :: FUNCTIONS FOR UTILITY
 
