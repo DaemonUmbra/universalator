@@ -2116,11 +2116,21 @@ PAUSE
 EXIT /B
 :: END CLIENT ONLY MODS SCANNING FOR FABRIC / QUILT SECTION
 
-
 :: FUNCTION FOR UPNP MENU
 :upnpmenu_funciton
 :upnpmenu
-:: First check to see if LOCALIP was found previously on launch or not.  If miniUPnP was just installed during this program run it needs to be done!
+:: First check if the network appears to be using CG-NAT or not.
+:: If the public IP address starts with 100.64 then it is CG-NAT and UPnP will not work.
+IF DEFINED PUBLICIP IF "!PUBLICIP:~0,7!"=="100.64." (
+  CLS
+  ECHO: & ECHO:
+  ECHO   %yellow% YOUR NETWORK APPEARS TO BE USING CG-NAT - UPNP WILL NOT WORK %blue% & ECHO:
+  ECHO   %yellow% CG-NAT IS A TYPE OF NETWORK ADDRESS TRANSLATION WHICH PREVENTS UPNP FROM WORKING %blue% & ECHO:
+  ECHO   %yellow% YOU WILL NEED TO SET UP PORT FORWARDING SOME OTHER WAY LIKE USING PLAYIT.GG %blue% & ECHO: & ECHO:
+  ECHO   %yellow% IF YOU ARE USING A VPN OR PROXY - PLEASE DISABLE IT AND TRY AGAIN %blue% & ECHO: & ECHO:
+  PAUSE
+  EXIT /B
+)
 
 :: Sets a variable to toggle so that IP addresses can be shown or hidden
 IF NOT DEFINED SHOWIP SET SHOWIP=N
@@ -2989,16 +2999,44 @@ IF NOT DEFINED var (
     GOTO :editserverprops
   )
 
-  IF "!PROP[%entry1%]!"=="region-file-compression" (
-    IF !VAL[%entry1%]!==deflate SET entry2=lz4 & ECHO: & ECHO: & ECHO: & ECHO   %yellow% LZ4 compression method set - this will take up more hard drive space for the world folder, %blue% & ECHO   %yellow% but have faster access time performance^^! %blue% & ECHO: & PAUSE
-    IF !VAL[%entry1%]!==lz4 SET entry2=deflate
+IF "!PROP[%entry1%]!"=="region-file-compression" (
+    IF "!VAL[%entry1%]!"=="deflate" SET "entry2=lz4" & ECHO: & ECHO   %yellow% LZ4 compression method set - this will take up more hard drive space for the world folder, %blue% & ECHO   %yellow% but have faster access time performance^^! %blue% & ECHO: & PAUSE
+    IF "!VAL[%entry1%]!"=="lz4" SET "entry2=deflate"
+    IF "!VAL[%entry1%]!" NEQ "deflate" IF "!VAL[%entry1%]!" NEQ "lz4" SET "entry2=deflate"
     REM Could nest more IF ELSE to make more toggle entries.
-  ) ELSE (
+) ELSE IF "!PROP[%entry1%]!"=="max-players" ( 
     SET /P SCRATCH="%blue% %green% Enter new value for '!PROP[%entry1%]!': %blue% " <nul
-    SET /P entry2=
+    SET /P "entry2="
+    ECHO !entry2! | FINDSTR /R [a-Z] >nul && SET entry2=20
+    IF !entry2! LSS 1 SET "entry2=1"
+) ELSE IF "!PROP[%entry1%]!"=="max-tick-time" (
+    SET /P SCRATCH="%blue% %green% Enter new value for '!PROP[%entry1%]!': %blue% " <nul
+    SET /P "entry2="
+    ECHO !entry2! | FINDSTR /R [a-Z] >nul && SET entry2=60000
+    IF !entry2! LSS 0 SET "entry2=-1"
+) ELSE IF "!PROP[%entry1%]!"=="max-world-size" (
+    SET /P SCRATCH="%blue% %green% Enter new value for '!PROP[%entry1%]!': %blue% " <nul
+    SET /P "entry2="
+    ECHO !entry2! | FINDSTR /R [a-Z] >nul && SET entry2=29999984
+    IF !entry2! LSS 1 SET "entry2=1"
+) ELSE IF "!PROP[%entry1%]!"=="simulation-distance" (
+    SET /P SCRATCH="%blue% %green% Enter new value for '!PROP[%entry1%]!': %blue% " <nul
+    SET /P "entry2="
+    ECHO !entry2! | FINDSTR /R [a-Z] >nul && SET entry2=10
+    IF !entry2! LSS 1 SET entry2=1
+    IF !entry2! GTR 32 SET entry2=32
+) ELSE IF "!PROP[%entry1%]!"=="view-distance" (
+    SET /P SCRATCH="%blue% %green% Enter new value for '!PROP[%entry1%]!': %blue% " <nul
+    SET /P "entry2="
+    ECHO !entry2! | FINDSTR /R [a-Z] >nul && SET entry2=10
+    IF !entry2! LSS 1 SET entry2=1
+    IF !entry2! GTR 32 SET entry2=32
+) ELSE (
+    SET /P SCRATCH="%blue% %green% Enter new value for '!PROP[%entry1%]!': %blue% " <nul
+    SET /P "entry2="
     :: Trims off any trailing spaces
     IF "!entry2:~-1!"==" " CALL :trim "!entry2!" entry1
-  )
+)
 
   :: Uses the serverpropsedit function to edit the server.properties file
   CALL :serverpropsedit !PROP[%entry1%]! "!entry2!"
