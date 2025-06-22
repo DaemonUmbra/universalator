@@ -96,6 +96,7 @@ IF NOT EXIST settings-universalator.txt ( CALL :settingsentry )
 :: BEGIN MAIN MENU
 :mainmenu
 
+SET "MENU_MODE=main"
 TITLE Universalator %UNIV_VERSION%
 :: Reads off the values of the settings file to set variables for use.
 CALL :read_settings_file
@@ -155,6 +156,7 @@ IF "!MAINMENU:~-1!"==" " CALL :trim "!MAINMENU!" MAINMENU
 
 :: Main menu / All-commands menu - possible entries
 IF /I !MAINMENU!==Q COLOR 07 & CLS & EXIT
+IF /I !MAINMENU!==M ( GOTO :mainmenu )
 IF /I !MAINMENU!==UPNP ( CALL :upnpmenu_funciton )
 IF /I !MAINMENU!==V ( 
   CALL :get_modloader_metadatafile
@@ -184,10 +186,12 @@ IF /I !MAINMENU!==GENRUN ( CALL :gen_run_scripts )
 IF /I !MAINMENU!==PURGE ( CALL :purge_function )
 
 :: If no recognized entries were made then go back to main menu
-GOTO :mainmenu
+IF !MENU_MODE!==main GOTO :mainmenu
+IF !MENU_MODE!==allcommands GOTO :allcommands
 
 :: Alternative menu for listing all possible menu options when A is entered from mainmenu
 :allcommands
+SET "MENU_MODE=allcommands"
 CLS
 ECHO:%yellow%
 %UNIV_HEADER%
@@ -281,8 +285,8 @@ SET /P "MINECRAFT="
 :: Trims off any trailing spaces
 IF "!MINECRAFT:~-1!"==" " CALL :trim "!MINECRAFT!" MINECRAFT
 
-:: If needed, goes to get a copy of the Mojang manifest file.
-IF NOT EXIST "univ-utils\version_manifest_v2.json" CALL :getmojmanifest
+:: Checks up on having a Mojang manifest file.
+CALL :checkmojmanifest
 
 :: Checks the entered MINECRAFT version versus the Mojang manifest file to see if it's a valid release version.
 SET FOUNDMC=IDK
@@ -1447,19 +1451,8 @@ ECHO   Minecraft server JAR not found - attempting to download from Mojang serve
 ECHO   Downloading Minecraft server JAR file... .. . & ECHO:
 
 :upnpgetjar
-:: Tests for whether to download missing manifest file
-SET GETMANIFEST=U
-IF NOT EXIST "univ-utils\version_manifest_v2.json" SET GETMANIFEST=Y
-:: If the manifest file already exists then evaluate whether it's older than the set age - delete/reinstall if older than
-IF EXIST "univ-utils\version_manifest_v2.json" (
-  FOR /F %%G IN ('powershell -Command "Test-Path '%HERE%\univ-utils\version_manifest_v2.json' -OlderThan (Get-Date).AddDays(-1)"') DO (
-    IF %%G==True (
-      DEL "univ-utils\version_manifest_v2.json"
-      SET GETMANIFEST=Y
-    )
-  )
-)
-IF !GETMANIFEST!==Y ( CALL :getmojmanifest )
+:: Checks up on getting a copy of the Mojang manifest
+CALL :checkmojmanifest
 
 :: Tests if the version.json file needs to be obtained
 IF NOT EXIST "univ-utils\versions" MD "univ-utils\versions"
@@ -1516,7 +1509,14 @@ EXIT /B
 
 
 :: FUNCTION TO GET MOJANG MANIFEST FILE
-:getmojmanifest
+:checkmojmanifest
+
+:: If a version_manifest_v2.json exists, check it's age
+IF EXIST "univ-utils\version_manifest_v2.json" (
+  FOR /F %%G IN ('powershell -Command "Test-Path '!HEREPOWERSHELL!\univ-utils\version_manifest_v2.json' -OlderThan (Get-Date).AddDays(-1)"') DO ( 
+    IF %%G==Flase ( EXIT /B )
+    IF %%G==True DEL "univ-utils\version_manifest_v2.json" )
+)
 
 :try_getmanifestagain
 powershell -Command "(New-Object Net.WebClient).DownloadFile('https://launchermeta.mojang.com/mc/game/version_manifest_v2.json', 'univ-utils\version_manifest_v2.json')" >nul
@@ -3098,15 +3098,26 @@ SET FOUNDGOODFIREWALLRULE=IDK
 :: This is done by looking at the latest.log file for a successful world spawn gen, which usually means that the server fully loaded at least once, giving the user time to accept the firewall 'allow'.
 :: If the java version / folder was just installed in this window session, skip this check entirely.  The variable could be un-set but it's easier to avoid shennanigans if it's just disabled for the rest of the session.
 :: If the Private firewall is turned off, skip this check entirely
-FOR /F "delims=" %%A IN ('powershell -Command "$data = Get-NetFirewallProfile -Name Private; $data.Enabled"') DO IF "%%A" NEQ "True" SET FOUNDGOODFIREWALLRULE=Y & GOTO :firewallresult
+REM FOR /F "delims=" %%A IN ('powershell -Command "$data = Get-NetFirewallProfile -Name Private; $data.Enabled"') DO IF "%%A" NEQ "True" SET FOUNDGOODFIREWALLRULE=Y & GOTO :firewallresult
 :: Checks for firewall rules set for {inbound / true / allow}, with the strings {TCP} and {JAVAFOLDERPATH} in the line.
+REM SET "LONGJAVAFOLDER=%HERE%\univ-utils\java\!JAVAFOLDER!\bin\java.exe"
+
+REM FOR /F "delims=" %%A IN ('powershell -Command "$data = Get-NetFirewallRule -Direction Inbound -Enabled True -Action Allow; $data.name"') DO (
+REM   REM Uses string replacement to check for TCP in the line, and if found echos the string to a FINDSTR to look for the java folder path.
+REM   SET TEMP=%%A
+REM   IF "!TEMP!" NEQ "!TEMP:TCP=x!" IF "!TEMP!" NEQ "!TEMP:%LONGJAVAFOLDER%=x!" SET FOUNDGOODFIREWALLRULE=Y
+REM )
+
+
+REM :: Uses the determined java file/folder location to check for valid firewall rules
+REM :: Checks if Private firewall profile is enabled first
 SET "LONGJAVAFOLDER=%HERE%\univ-utils\java\!JAVAFOLDER!\bin\java.exe"
 
-FOR /F "delims=" %%A IN ('powershell -Command "$data = Get-NetFirewallRule -Direction Inbound -Enabled True -Action Allow; $data.name"') DO (
-  REM Uses string replacement to check for TCP in the line, and if found echos the string to a FINDSTR to look for the java folder path.
-  SET TEMP=%%A
-  IF "!TEMP!" NEQ "!TEMP:TCP=x!" IF "!TEMP!" NEQ "!TEMP:%LONGJAVAFOLDER%=x!" SET FOUNDGOODFIREWALLRULE=Y
+FOR /F "delims=" %%A IN ('powershell -Command "$private = Get-NetFirewallProfile -Name Private; if(!$private.Enabled) { Write-Output $true } else { $rules = Get-NetFirewallRule -Direction Inbound -Enabled True -Action Allow; $foundTcp = $false; foreach($rule in $rules) { $ports = ($rule | Get-NetFirewallPortFilter); if($ports.LocalPort -contains ''!PORT!'' -and $ports.Protocol -eq ''TCP'') { $apps = ($rule | Get-NetFirewallApplicationFilter).Program; if($apps -contains ''!LONGJAVAFOLDER!'') { $foundTcp = $true; break; } } }; Write-Output $foundTcp }"') DO (
+     SET "FOUNDGOODFIREWALLRULE=%%A"
 )
+
+
 
 :firewallresult
 
