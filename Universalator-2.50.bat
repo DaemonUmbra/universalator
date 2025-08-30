@@ -3456,10 +3456,15 @@ ECHO %LOC% | FINDSTR /I "curseforge atlauncher at_launcher gdlauncher gd_launche
 
 :: BEGIN CHECKING HARD DRIVE FREE SPACE
 :: Returns True if more than the amount of hard drive space is free, False if not
-FOR /F "usebackq delims=" %%A IN (`powershell -Command "$space = (Get-CimInstance -ClassName Win32_LogicalDisk -Filter 'DeviceID = ''%~d0''').FreeSpace/1GB; [math]::Round($space)"`) DO ( SET "DISKFREE=%%A" & IF !DISKFREE! LEQ 20 SET DISKWORRY=Y )
-:: Returns the percent of hard drive space free
-FOR /F "delims=" %%A IN ('powershell -Command "$data = try { get-psdrive %CD:~0,1% } catch { $null }; if($data) { $result = [math]::Round(($data.used/($data.free+$data.used)) * 100) }; $result"') DO SET "DISKPERCENT=%%A"
-IF DEFINED DISKPERCENT IF !DISKPERCENT! GEQ 95 SET "DISKWORRY=Y"
+FOR /F "usebackq delims=" %%A IN (`powershell -Command "$space = try { (Get-CimInstance -ClassName Win32_LogicalDisk -Filter 'DeviceID = ''%~d0''').FreeSpace/1GB } catch { -1 }; [math]::Round($space)"`) DO (
+  SET "DISKFREE=%%A"
+  IF !DISKFREE! NEQ -1 IF !DISKFREE! LEQ 20 SET DISKWORRY=Y
+)
+
+FOR /F "delims=" %%A IN ('powershell -Command "$data = try { get-psdrive %CD:~0,1% } catch { $null }; if($data) { $result = [math]::Round(($data.used/($data.free+$data.used)) * 100) } else { -1 }; $result"') DO (
+  SET "DISKPERCENT=%%A" 
+  IF !DISKPERCENT! NEQ -1 IF !DISKPERCENT! GEQ 34 SET "DISKWORRY=Y"
+)
 
 :: If either of the above is of concern then show a bypassable warning message
 IF DEFINED DISKWORRY (
