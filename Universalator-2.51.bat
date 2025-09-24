@@ -182,6 +182,7 @@ IF /I !MAINMENU!==RESTART ( CALL :restarttoggle )
 IF /I !MAINMENU!==LOG ( CALL :logs_view ) ELSE IF /I !MAINMENU!==LOGS ( CALL :logs_view )
 IF /I !MAINMENU!==MODS ( CALL :mods_view )
 IF /I !MAINMENU!==SMOD ( CALL :mods_view )
+IF /I !MAINMENU!==ICON ( CALL :icon_make )
 IF /I !MAINMENU!==GENRUN ( CALL :gen_run_scripts )
 IF /I !MAINMENU!==PURGE ( CALL :purge_function )
 
@@ -213,6 +214,7 @@ ECHO:    %green% GENRUN %blue%   = GENERATE BASIC RUN.SH / RUN.BAT SCRIPTS
 ECHO:    %green% UPNP %blue%     = UPNP PORT FORWARDING MENU
 ECHO:    %green% LOG %blue%      = VIEW THE LAST LOG FILE MADE
 ECHO:    %green% MODS/SMOD%blue% = VIEW ALL FILES ^& FOLDERS IN MODS FOLDER
+ECHO:    %green% ICON %blue%     = CREATE A DEFAULT SERVER ICON ICON FILE
 ECHO:    %green% MCREATOR %blue% = SCAN MOD FILES FOR MCREATOR MADE MODS
 ECHO:    %green% OVERRIDE %blue% = TOGGLE THE JAVA OVERRIDE STATUS
 ECHO:    %green% ZIP %blue%      = MENU FOR CREATING SERVER PACK ZIP FILE & ECHO:
@@ -385,6 +387,13 @@ IF !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 (
   SET "METADATAFILE=maven-neoforge-metadata.xml"
   SET "METADATAURL=https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml"
 )
+
+REM Specially if Forge modloader, get the JSON file that lists current newest release versions.  It's easier than parsing for the newest version in batch script for the semantics used.
+IF !MODLOADER!==FORGE (
+  IF EXIST "%HERE%\univ-utils\promotions_slim.json" FOR /F %%G IN ('powershell -Command "Test-Path '!HEREPOWERSHELL!\univ-utils\promotions_slim.json' -OlderThan (Get-Date).AddHours(-6)"') DO ( DEL "%HERE%\univ-utils\promotions_slim.json" )
+  IF NOT EXIST "%HERE%\univ-utils\promotions_slim.json" powershell -Command "(New-Object Net.WebClient).DownloadFile('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json', 'univ-utils\promotions_slim.json')" >nul
+)
+
 :: GET_XML will only be False if the file exists AND if it's newer than 6 hours.
 IF EXIST "%HERE%\univ-utils\!METADATAFILE!" FOR /F %%G IN ('powershell -Command "Test-Path '!HEREPOWERSHELL!\univ-utils\!METADATAFILE!' -OlderThan (Get-Date).AddHours(-6)"') DO SET GET_XML=%%G
 :: Exits if a new download isn't needed.
@@ -553,8 +562,8 @@ CLS
 ECHO: & ECHO:
 ECHO   YOUR FOLDER LOCATION^:
 ECHO   !HERE! & ECHO: & ECHO:
-IF !MODLOADER!==FABRIC ECHO   %red% OOPS - THE VERSION OF %yellow% !MODLOADER! %red% ENTERED : %yellow% %FABRICLOADER% %blue%
-IF !MODLOADER!==QUILT ECHO   %red% OOPS - THE VERSION OF %yellow% !MODLOADER! %red% ENTERED : %yellow% %QUILTLOADER% %blue%
+IF !MODLOADER!==FABRIC ECHO   %red% OOPS - THE VERSION OF %yellow% !MODLOADER! %red% ENTERED : %yellow% %MODLOADERVERSION% %blue%
+IF !MODLOADER!==QUILT ECHO   %red% OOPS - THE VERSION OF %yellow% !MODLOADER! %red% ENTERED : %yellow% %MODLOADERVERSION% %blue%
 ECHO: & ECHO   %red% DOES NOT SEEM TO EXIST ON THE !MODLOADER! FILE SERVER %blue% & ECHO:
 ECHO   %red% ENTER A DIFFERENT VERSION NUMBER THAT IS KNOWN TO EXIST %blue% & ECHO: & ECHO:
 PAUSE
@@ -567,41 +576,35 @@ EXIT /B
 :: FUNCTION TO ENTER THE FORGE OR NEOFORGE MODLOADER VERSION
 :enter_forge_neoforge_version
 :redo_enter_forge_neoforge_version
-:: Scanning each type of maven metadata file is different.
+
 SET MAVENISSUE=IDK
-:: If Forge get newest version available of the selected minecraft version.
+
+:: If Forge use the JSON file to get the lastest published version.
 IF /I !MODLOADER!==FORGE (
-  SET /a idx=0
-  SET "ARRAY[!idx!]="
-  FOR /F "tokens=1,2 delims=-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\maven-forge-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
-    IF %%A==!MINECRAFT! (
-        SET ARRAY[!idx!]=%%B
-        SET /a idx+=1
-    )
-  )
-  SET NEWESTFORGE=!ARRAY[0]!
-  IF [!ARRAY[0]!] EQU [] SET MAVENISSUE=Y
+  SET "NEWESTVERSION="
+  IF EXIST "univ-utils\promotions_slim.json" ( FOR /F "delims=" %%A IN ('powershell -Command "$data=(Get-Content -Raw -Path '!HEREPOWERSHELL!\univ-utils\promotions_slim.json' | Out-String | ConvertFrom-Json); $data.promos.'!MINECRAFT!-latest'"') DO SET "NEWESTVERSION=%%A" )
+  IF NOT DEFINED NEWESTVERSION SET "NEWESTVERSION=Not detected - enter a version number"
 )
 
-REM If Neoforge get newest version available of the selected minecraft version.
-IF /I !MODLOADER!==NEOFORGE (
-  SET "NEWESTNEOFORGE="
-  REM This is the initial versions maven that Neoforge used - only for MC 1.20.1
-  IF !MINECRAFT!==1.20.1 FOR /F "tokens=1,2 delims=-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\maven-neoforge-1.20.1-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
-    IF %%A==!MINECRAFT! (
-        SET NEWESTNEOFORGE=%%B
-    )
-  )
-  REM Neoforge changed how they version number their installer files starting with MC 1.20.2 - this is the new system.
+:: If Neoforge 1.20.1 use a hardcoded version to keep things simple, they stopped updating this.
+IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT!==1.20.1 ( SET "NEWESTVERSION=47.1.106" )
+
+REM If Neoforge - parse the metadata file for the newest version number.
+IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 (
+  SET "NEWESTVERSION="
+  SET /a idv=0
+  REM Loops through all the lines of the metadata file, keeps setting a newest version variable if the line matches the MC version and it's a higher version than previously found in the loop.
+  REM idv is a counter variable to check against for each loop.
   IF !MINECRAFT! NEQ 1.20.1 FOR /F "tokens=1-4 delims=.-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\maven-neoforge-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
-    REM If the current Minecraft version contains a minor version
     IF %%A==!MCMAJOR! IF %%B==!MCMINOR! (
-        SET NEWESTNEOFORGE=%%A.%%B.%%C
-        IF [%%D] NEQ [] SET NEWESTNEOFORGE=!NEWESTNEOFORGE!-%%D
+      IF %%C GTR !idv! ( 
+        SET idv=%%C
+        REM Saves the version if found to be newer, accounts for the D parameter being empty or not.  So far neoforge only uses that entry for 'beta' versions.
+        IF [%%D]==[] ( SET "NEWESTVERSION=%%A.%%B.%%C" ) ELSE ( SET "NEWESTVERSION=%%A.%%B.%%C-%%D" )
+      )
     )
   )
-  REM If looking through the maven xml file results in NEWESTNEOFORGE being blank then it found no matches with the current minecraft version.
-  IF [!NEWESTNEOFORGE!] EQU [] SET MAVENISSUE=Y
+  IF NOT DEFINED NEWESTVERSION SET MAVENISSUE=Y
 )
 
 :: If there exists no corresponding MC version to Modloader version.
@@ -655,8 +658,7 @@ IF NOT EXIST settings-universalator.txt (
 
 ECHO     THE NEWEST VERSION OF !MODLOADER! FOR MINECRAFT VERSION !MINECRAFT!
 ECHO     WAS DETECTED TO BE:
-IF /I !MODLOADER!==FORGE ECHO                      %green% !NEWESTFORGE! %blue%
-IF /I !MODLOADER!==NEOFORGE ECHO                      %green% !NEWESTNEOFORGE! %blue%
+ECHO                      %green% !NEWESTVERSION! %blue%
 ECHO:
 ECHO     -ENTER %green% 'Y' %blue% TO USE THIS NEWEST VERSION & ECHO: & ECHO      %yellow% OR %blue% & ECHO:
 ECHO     -ENTER A VERSION NUMBER TO USE INSTEAD
@@ -664,46 +666,44 @@ ECHO        example: 14.23.5.2860
 ECHO        example: 47.1.3
 ECHO: & ECHO   %yellow% !MODLOADER! VERSION - !MODLOADER! VERSION %blue% & ECHO:
 SET /P SCRATCH="%blue%  %green% ENTRY: %blue% " <nul
-SET /P "FROGEENTRY="
-IF NOT DEFINED FROGEENTRY GOTO :redoenterforge
+SET /P "ENTRY="
+IF NOT DEFINED ENTRY GOTO :redoenterforge
 :: Skips ahead if Y to select the already found newest version was entered
-IF /I !FROGEENTRY!==Y (
-  IF !MODLOADER!==FORGE ( SET FORGE=!NEWESTFORGE! & SET MODLOADERVERSION=!NEWESTFORGE! )
-  IF !MODLOADER!==NEOFORGE ( SET NEOFORGE=!NEWESTNEOFORGE! & SET MODLOADERVERSION=!NEWESTNEOFORGE! )
+IF /I !ENTRY!==Y (
+  SET MODLOADERVERSION=!NEWESTVERSION!
   EXIT /B
 )
 :: Trims off any trailing spaces
-IF "!FROGEENTRY:~-1!"==" " CALL :trim "!FROGEENTRY!" FROGEENTRY
+IF "!ENTRY:~-1!"==" " CALL :trim "!ENTRY!" ENTRY
 
 :: Checks to see if there were any a-z or A-Z characters in the entry - but only for Forge because Neoforge has some versions with -beta in the name now.
 ECHO:
 SET FORGEENTRYCHECK=IDK
-IF !MODLOADER!==FORGE ECHO !FROGEENTRY! | FINDSTR "[a-z] [A-Z]" && SET FORGEENTRYCHECK=LETTER
- IF !FORGEENTRYCHECK!==IDK (
-    IF /I !MODLOADER!==FORGE ( SET FORGE=!FROGEENTRY! & SET MODLOADERVERSION=!FROGEENTRY! )
-    IF /I !MODLOADER!==NEOFORGE ( SET NEOFORGE=!FROGEENTRY! & SET MODLOADERVERSION=!FROGEENTRY! )
-) ELSE (
-  ECHO: & ECHO OOPS NOT A VALID ENTRY MADE - PRESS ANY KEY AND TRY AGAIN & ECHO:
-  PAUSE
+IF !MODLOADER!==FORGE ECHO !ENTRY! | FINDSTR "[a-z] [A-Z]" && SET FORGEENTRYCHECK=LETTER
+  IF !FORGEENTRYCHECK!==IDK (
+    SET MODLOADERVERSION=!ENTRY!
+  ) ELSE (
+    ECHO: & ECHO OOPS NOT A VALID ENTRY MADE - PRESS ANY KEY AND TRY AGAIN & ECHO:
+    PAUSE
   GOTO :redoenterforge
 )
 
 :: Checks maven metadata file to determine if any manually entered version entered does in fact exist
 IF /I !MODLOADER!==FORGE (
   FOR /F "tokens=1,2 delims=-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\maven-forge-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
-    IF %%A==!MINECRAFT! IF %%B==!FROGEENTRY! GOTO :foundvalidforgeversion
+    IF %%A==!MINECRAFT! IF %%B==!ENTRY! GOTO :foundvalidforgeversion
     )
 )
 IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT!==1.20.1 (
   FOR /F "tokens=1,2 delims=-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\maven-neoforge-1.20.1-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
-    IF %%A==!MINECRAFT! IF %%B==!FROGEENTRY! GOTO :foundvalidforgeversion
+    IF %%A==!MINECRAFT! IF %%B==!ENTRY! GOTO :foundvalidforgeversion
   )
 )
 
 IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 (
   FOR /F "tokens=1-4 delims=.-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\maven-neoforge-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
-    IF [%%D]==[] IF %%A==!MCMAJOR! IF %%B==!MCMINOR! IF !FROGEENTRY!==%%A.%%B.%%C  GOTO :foundvalidforgeversion
-    IF [%%D] NEQ [] IF %%A==!MCMAJOR! IF %%B==!MCMINOR! IF !FROGEENTRY!==%%A.%%B.%%C-%%D  GOTO :foundvalidforgeversion
+    IF [%%D]==[] IF %%A==!MCMAJOR! IF %%B==!MCMINOR! IF !ENTRY!==%%A.%%B.%%C  GOTO :foundvalidforgeversion
+    IF [%%D] NEQ [] IF %%A==!MCMAJOR! IF %%B==!MCMINOR! IF !ENTRY!==%%A.%%B.%%C-%%D  GOTO :foundvalidforgeversion
   )
 )
 
@@ -712,7 +712,7 @@ CLS
 ECHO: & ECHO:
 ECHO   YOUR FOLDER LOCATION^:
 ECHO   !HERE! & ECHO: & ECHO:
-ECHO   %red% OOPS - THE VERSION OF %yellow% !MODLOADER! %red% ENTERED : %yellow% %MINECRAFT% - %FROGEENTRY% %blue% & ECHO:
+ECHO   %red% OOPS - THE VERSION OF %yellow% !MODLOADER! %red% ENTERED : %yellow% %MINECRAFT% - %ENTRY% %blue% & ECHO:
 ECHO   %red% DOES NOT SEEM TO EXIST ON THE !MODLOADER! FILE SERVER %blue% & ECHO:
 ECHO   %red% ENTER A DIFFERENT VERSION NUMBER THAT IS KNOWN TO EXIST FOR YOUR ENTERED MINECRAFT VERSION !MINECRAFT! %blue% & ECHO: & ECHO:
 PAUSE
@@ -721,7 +721,6 @@ GOTO :redoenterforge
 :foundvalidforgeversion
 EXIT /B
 :: END FUNCTION TO ENTER THE FORGE OR NEOFORGE MODLOADER VERSION
-
 
 
 :: FUNCTION TO SET THE JAVA VERSION
@@ -736,8 +735,8 @@ IF !MCMAJOR! LEQ 16 IF !MCMINOR! LEQ 4 SET "JAVAVERSION=8" & SET ONLY=Y
 IF !MCMAJOR! LEQ 16 IF !MCMINOR! GEQ 5 SET "JAVAVERSION=8"
 IF !MCMAJOR!==17 SET "JAVAVERSION=16" & SET ONLY=Y
 IF !MCMAJOR! GEQ 18 SET "JAVAVERSION=17"
-IF !MCMAJOR!==20 IF !MCMINOR! GEQ 6 SET "JAVAVERSION=21" & SET ONLY=Y
-IF !MCMAJOR! GEQ 21 SET "JAVAVERSION=21" & SET ONLY=Y
+IF !MCMAJOR!==20 IF !MCMINOR! GEQ 6 SET "JAVAVERSION=21"
+IF !MCMAJOR! GEQ 21 SET "JAVAVERSION=21"
 :: Exits if only one version is possible for the MC version being used.  If user got here from mainmenu J then give a message flash.
 IF /I !MAINMENU!==J IF !ONLY!==Y ( 
   ECHO   %yellow% The displayed Java version is the only version possible for this Minecraft version. %blue%
@@ -753,8 +752,11 @@ ECHO:
 ECHO   JAVA IS THE ENGINE THAT MINECRAFT JAVA EDITION RUNS ON
 ECHO:
 IF !MCMAJOR! EQU 16 IF !MCMINOR! EQU 5 ECHO   THE OPTIONS FOR MINECRAFT !MINECRAFT! BASED LAUNCHING ARE %green% 8 %blue% AND %green% 11 %blue%
-IF !MCMAJOR! GEQ 18 IF !MCMAJOR! LEQ 19 ECHO   THE OPTIONS FOR MINECRAFT !MINECRAFT! BASED LAUNCHING ARE %green% 17 %blue% AND %green% 21 %blue%
-IF !MCMAJOR!==20 IF !MCMINOR! LEQ 5 ECHO   THE OPTIONS FOR MINECRAFT !MINECRAFT! BASED LAUNCHING ARE %green% 17 %blue% AND %green% 21 %blue%
+IF !MCMAJOR! GEQ 18 IF !MCMAJOR! LEQ 19 ECHO   THE OPTIONS FOR MINECRAFT !MINECRAFT! BASED LAUNCHING ARE %green% 17 %blue%, %green% 21 %blue%, AND %green% 25 %blue%
+IF !MCMAJOR!==20 IF !MCMINOR! LEQ 4 ECHO   THE OPTIONS FOR MINECRAFT !MINECRAFT! BASED LAUNCHING ARE %green% 17 %blue%, %green% 21 %blue%, AND %green% 25 %blue%
+IF !MCMAJOR!==20 IF !MCMINOR! GEQ 5 ECHO   THE OPTIONS FOR MINECRAFT !MINECRAFT! BASED LAUNCHING ARE %green% 21 %blue%, AND %green% 25 %blue%
+IF !MCMAJOR! GEQ 21 ECHO   THE OPTIONS FOR MINECRAFT !MINECRAFT! BASED LAUNCHING ARE %green% 21 %blue%, AND %green% 25 %blue%
+
 ECHO:
 ECHO   * USING THE NEWER VERSION OPTION IF GIVEN A CHOICE %green% MAY %blue% OR %red% MAY NOT %blue% WORK DEPENDING ON MODS BEING LOADED
 ECHO   * IF A SERVER FAILS TO LAUNCH, YOU SHOULD CHANGE BACK TO THE LOWER DEFAULT VERSION^^! & ECHO: & ECHO:
@@ -769,10 +771,10 @@ IF !MCMAJOR! LSS 16 IF !JAVAVERSION! NEQ 8 GOTO :javaselect
 IF !MCMAJOR! EQU 16 IF !MCMINOR! LEQ 4 IF !JAVAVERSION! NEQ 8 GOTO :javaselect
 IF !MCMAJOR! EQU 16 IF !MCMINOR! EQU 5 IF !JAVAVERSION! NEQ 8 IF !JAVAVERSION! NEQ 11 GOTO :javaselect
 IF !MCMAJOR! EQU 17 IF !JAVAVERSION! NEQ 16 GOTO :javaselect
-IF !MCMAJOR! GEQ 18  IF !MCMAJOR! LEQ 19 IF !JAVAVERSION! NEQ 17 IF !JAVAVERSION! NEQ 21 GOTO :javaselect
-IF !MCMAJOR!==20 IF !MCMINOR! LEQ 5  IF !JAVAVERSION! NEQ 17 IF !JAVAVERSION! NEQ 21 GOTO :javaselect
-IF !MCMAJOR!==20 IF !MCMINOR! GEQ 6 IF !JAVAVERSION! NEQ 21 GOTO :javaselect
-IF !MCMAJOR! GEQ 21 IF !JAVAVERSION! NEQ 21 GOTO :javaselect
+IF !MCMAJOR! GEQ 18  IF !MCMAJOR! LEQ 19 IF !JAVAVERSION! NEQ 17 IF !JAVAVERSION! NEQ 21 IF !JAVAVERSION! NEQ 25 GOTO :javaselect
+IF !MCMAJOR!==20 IF !MCMINOR! LEQ 5  IF !JAVAVERSION! NEQ 17 IF !JAVAVERSION! NEQ 21 IF !JAVAVERSION! NEQ 25 GOTO :javaselect
+IF !MCMAJOR!==20 IF !MCMINOR! GEQ 6 IF !JAVAVERSION! NEQ 21 IF !JAVAVERSION! NEQ 25 GOTO :javaselect
+IF !MCMAJOR! GEQ 21 IF !JAVAVERSION! NEQ 21 IF !JAVAVERSION! NEQ 25 GOTO :javaselect
 
 IF DEFINED MAINMENU IF /I !MAINMENU!==J (
   CALL :univ_settings_edit JAVAVERSION !JAVAVERSION!
@@ -904,11 +906,6 @@ IF EXIST settings-universalator.txt (
 
   :: Sets a string variable for passing -Xmx JVM startup argument to java launches, based on the integer entered for number of gigs.
   SET "MAXRAM=-Xmx!MAXRAMGIGS!G"
-  :: The settings txt file has one entry for MODLOADERVERSION.  Depending on the value of MODLOADER, set the variable for whichever modloader type is set equal to the MODLOADERVERSION.
-  IF /I !MODLOADER!==FORGE SET FORGE=!MODLOADERVERSION!
-  IF /I !MODLOADER!==NEOFORGE SET NEOFORGE=!MODLOADERVERSION!
-  IF /I !MODLOADER!==FABRIC SET FABRICLOADER=!MODLOADERVERSION!
-  IF /I !MODLOADER!==QUILT SET QUILTLOADER=!MODLOADERVERSION!
 
   :: Gets a value for the name of OVERRIDE java if using system PATH java
   IF DEFINED OVERRIDE IF !OVERRIDE!==J (
@@ -1159,8 +1156,8 @@ EXIT /B
 
 :detectforge
 :: Checks to see if the specific JAR file or libraries folder exists for this modloader & version.  If found we'll assume it's installed correctly and move to the foundforge label.
-IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT!==1.20.1 IF EXIST libraries/net/neoforged/forge/!MINECRAFT!-!NEOFORGE!/. GOTO :foundforge
-IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 IF EXIST libraries/net/neoforged/neoforge/!NEOFORGE!/. GOTO :foundforge
+IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT!==1.20.1 IF EXIST libraries/net/neoforged/forge/!MINECRAFT!-!MODLOADERVERSION!/. GOTO :foundforge
+IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 IF EXIST libraries/net/neoforged/neoforge/!MODLOADERVERSION!/. GOTO :foundforge
 
 :: Sets some lower case character variables for file naming.
 IF !MODLOADER!==FORGE SET "mod_loader=forge"
@@ -1168,27 +1165,27 @@ IF !MODLOADER!==NEOFORGE SET "mod_loader=neoforge"
 
 IF /I !MODLOADER!==FORGE (
   :: Sets variables for different file names that different versions of Forge have.
-  SET "FORGEFILENAMEORDER=!MINECRAFT!-!FORGE!"
-  IF !MCMAJOR! GEQ 7 IF !MCMAJOR! LEQ 9 SET "FORGEFILENAMEORDER=!MINECRAFT!-!FORGE!-!MINECRAFT!"
+  SET "FORGEFILENAMEORDER=!MINECRAFT!-!MODLOADERVERSION!"
+  IF !MCMAJOR! GEQ 7 IF !MCMAJOR! LEQ 9 SET "FORGEFILENAMEORDER=!MINECRAFT!-!MODLOADERVERSION!-!MINECRAFT!"
 
   SET FOUNDFORGEINST=N
 
   :: If MC LEQ 12 - Forge has changed their filename format a lot over the years so this catches all formats with one command.
-  IF !MCMAJOR! LEQ 12 ( DIR /B *.jar 2>nul | FINDSTR ".*!MINECRAFT!-!FORGE!.*jar" 1>nul 2>nul && SET FOUNDFORGEINST=Y)
+  IF !MCMAJOR! LEQ 12 ( DIR /B *.jar 2>nul | FINDSTR ".*!MINECRAFT!-!MODLOADERVERSION!.*jar" 1>nul 2>nul && SET FOUNDFORGEINST=Y)
 
   :: If MC 13 to 16 then checks for both a launcher JAR and the libraries folder.
-  IF !MCMAJOR! GEQ 13 IF !MCMAJOR! LEQ 16 IF EXIST "forge-!FORGEFILENAMEORDER!.jar" IF EXIST "libraries\net\minecraftforge\forge\!MINECRAFT!-!FORGE!\." SET FOUNDFORGEINST=Y
+  IF !MCMAJOR! GEQ 13 IF !MCMAJOR! LEQ 16 IF EXIST "forge-!FORGEFILENAMEORDER!.jar" IF EXIST "libraries\net\minecraftforge\forge\!MINECRAFT!-!MODLOADERVERSION!\." SET FOUNDFORGEINST=Y
  
   :: If MC 17 or higher then checks only for the libraries folder that gets used to launch.
-  IF !MCMAJOR! GEQ 17 IF EXIST "libraries\net\minecraftforge\forge\!MINECRAFT!-!FORGE!\." SET FOUNDFORGEINST=Y
+  IF !MCMAJOR! GEQ 17 IF EXIST "libraries\net\minecraftforge\forge\!MINECRAFT!-!MODLOADERVERSION!\." SET FOUNDFORGEINST=Y
 
   :: If the installation for the modloader / version is found then continue, othewise if installer was already tried delete the existing stored installer file and try again with a newly downloaded installer.
   IF !FOUNDFORGEINST!==Y ( SET "TRIEDINSTALLER=" & GOTO :foundforge ) ELSE ( IF DEFINED TRIEDINSTALLER IF !TRIEDINSTALLER!==Y IF EXIST "univ-utils\installers\!mod_loader!-!MODLOADERVERSION!-installer.jar" DEL "univ-utils\installers\!mod_loader!-!MODLOADERVERSION!-installer.jar" >nul 2>&1 )
 )
 
 :: At this point assume the JAR file or libaries folder does not exist and installation is needed.
-IF /I !MODLOADER!==FORGE ECHO: & ECHO   Existing Forge !FORGE! files installation not detected. & ECHO:
-IF /I !MODLOADER!==NEOFORGE ECHO: & ECHO   Existing Neoforge !NEOFORGE! files installation not detected. & ECHO:
+IF /I !MODLOADER!==FORGE ECHO: & ECHO   Existing Forge !MODLOADERVERSION! files installation not detected. & ECHO:
+IF /I !MODLOADER!==NEOFORGE ECHO: & ECHO   Existing Neoforge !MODLOADERVERSION! files installation not detected. & ECHO:
 %DELAY%
 ECHO   Beginning !MODLOADER! !MODLOADERVERSION! installation & ECHO:
 %DELAY%
@@ -1231,12 +1228,12 @@ IF %ERRORLEVEL% NEQ 0 (
 
 :: Sets a variable for the URL to download the Forge/Neoforge installer file from depending on the modloader and version, and then tries to download it with curl first, then powershell if that fails.
 IF /I !MODLOADER!==FORGE SET "INSTALLER_URL=https://maven.minecraftforge.net/net/minecraftforge/forge/!FORGEFILENAMEORDER!/forge-!FORGEFILENAMEORDER!-installer.jar"
-IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT!==1.20.1 SET "INSTALLER_URL=https://maven.neoforged.net/releases/net/neoforged/forge/!MINECRAFT!-!NEOFORGE!/forge-!MINECRAFT!-!NEOFORGE!-installer.jar"
-IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 SET "INSTALLER_URL=https://maven.neoforged.net/releases/net/neoforged/neoforge/!NEOFORGE!/neoforge-!NEOFORGE!-installer.jar"
+IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT!==1.20.1 SET "INSTALLER_URL=https://maven.neoforged.net/releases/net/neoforged/forge/!MINECRAFT!-!MODLOADERVERSION!/forge-!MINECRAFT!-!MODLOADERVERSION!-installer.jar"
+IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 SET "INSTALLER_URL=https://maven.neoforged.net/releases/net/neoforged/neoforge/!MODLOADERVERSION!/neoforge-!MODLOADERVERSION!-installer.jar"
 :: Sets the variable equal to itself to avoid funky expansion issues using it later.
 SET "INSTALLER_URL=!INSTALLER_URL!"
-IF !MODLOADER!==FORGE ECHO   Downloading !MINECRAFT! - Forge - !FORGE! installer file & ECHO:
-IF !MODLOADER!==NEOFORGE ECHO   Downloading !MINECRAFT! - Neoforge - !NEOFORGE! installer file & ECHO:
+IF !MODLOADER!==FORGE ECHO   Downloading !MINECRAFT! - Forge - !MODLOADERVERSION! installer file & ECHO:
+IF !MODLOADER!==NEOFORGE ECHO   Downloading !MINECRAFT! - Neoforge - !MODLOADERVERSION! installer file & ECHO:
 %DELAY%
 
 powershell -Command "(New-Object Net.WebClient).DownloadFile('!INSTALLER_URL!', '!mod_loader!-!MODLOADERVERSION!-installer.jar')" >nul 2>&1
@@ -1309,8 +1306,8 @@ GOTO :detectforge
 
 :foundforge
 ECHO:
-IF /I !MODLOADER!==FORGE ECHO   Detected Installed Forge !FORGE!. Moving on... & ECHO:
-IF /I !MODLOADER!==NEOFORGE ECHO   Detected Installed Neoforge !NEOFORGE!. Moving on... & ECHO:
+IF /I !MODLOADER!==FORGE ECHO   Detected Installed Forge !MODLOADERVERSION!. Moving on... & ECHO:
+IF /I !MODLOADER!==NEOFORGE ECHO   Detected Installed Neoforge !MODLOADERVERSION!. Moving on... & ECHO:
 ping -n 3 127.0.0.1 >nul
 
 EXIT /B
@@ -1582,10 +1579,10 @@ ECHO   %yellow% READY TO LAUNCH !MODLOADER! SERVER! %blue%
 ECHO:
 ECHO      CURRENT SERVER SETTINGS:
 ECHO        MINECRAFT - !MINECRAFT!
-IF /I !MODLOADER!==FORGE ECHO        FORGE     - !FORGE!
-IF /I !MODLOADER!==NEOFORGE ECHO        NEOFORGE  - !NEOFORGE!
-IF /I !MODLOADER!==FABRIC ECHO        !MODLOADER! LOADER   - !FABRICLOADER!
-IF /I !MODLOADER!==QUILT ECHO        !MODLOADER! LOADER   - !QUILTLOADER!
+IF /I !MODLOADER!==FORGE ECHO        FORGE     - !MODLOADERVERSION!
+IF /I !MODLOADER!==NEOFORGE ECHO        NEOFORGE  - !MODLOADERVERSION!
+IF /I !MODLOADER!==FABRIC ECHO        !MODLOADER! LOADER   - !MODLOADERVERSION!
+IF /I !MODLOADER!==QUILT ECHO        !MODLOADER! LOADER   - !MODLOADERVERSION!
 
 IF !OVERRIDE! NEQ J IF !JAVATYPE!==A ECHO        JAVA - !JAVAVERSION! / Adoptium !JAVANUM! & ECHO:
 IF !OVERRIDE! NEQ J IF !JAVATYPE!==S ECHO        JAVA - !JAVAVERSION!  ^(OS Installed - !JAVANUM!^) & ECHO:
@@ -1637,7 +1634,7 @@ IF /I !MODLOADER!==FORGE (
   IF !MCMAJOR! LEQ 16 (
     :: Unsets the FORGEFILE and tries to find the installed launcher JAR file if one is found using wildcards.
     SET "FORGEFILE="
-    DIR /B | FINDSTR ".*!MINECRAFT!-!FORGE!.*jar" 1>nul 2>nul && FOR /F "delims=" %%A IN ('"DIR /B | FINDSTR .*!MINECRAFT!-!FORGE!.*jar 2>nul"') DO set "FORGEFILE=%%A"
+    DIR /B | FINDSTR ".*!MINECRAFT!-!MODLOADERVERSION!.*jar" 1>nul 2>nul && FOR /F "delims=" %%A IN ('"DIR /B | FINDSTR .*!MINECRAFT!-!MODLOADERVERSION!.*jar 2>nul"') DO set "FORGEFILE=%%A"
 
     IF NOT DEFINED FORGEFILE (
       ECHO: & ECHO   %red% A FORGE LAUNCH JAR FILE WAS NOT FOUND BY THE SCRIPT %blue% & ECHO:
@@ -1650,8 +1647,8 @@ IF /I !MODLOADER!==FORGE (
   )
   :: Launching Minecraft versions 1.17 and newer.
   IF !MCMAJOR! GEQ 17 (
-    IF EXIST "libraries/net/minecraftforge/forge/!MINECRAFT!-!FORGE!/win_args.txt" (
-      SET "LAUNCHLINE=!MAXRAM! !USEARGS! @libraries/net/minecraftforge/forge/!MINECRAFT!-!FORGE!/win_args.txt nogui %%*"
+    IF EXIST "libraries/net/minecraftforge/forge/!MINECRAFT!-!MODLOADERVERSION!/win_args.txt" (
+      SET "LAUNCHLINE=!MAXRAM! !USEARGS! @libraries/net/minecraftforge/forge/!MINECRAFT!-!MODLOADERVERSION!/win_args.txt nogui %%*"
     ) ELSE (
       ECHO: & ECHO   %red% A FORGE LAUNCH JAR FILE WAS NOT FOUND BY THE SCRIPT %blue% & ECHO:
       ECHO   Something must have gone wrong with the installation of the Forge server files. & ECHO:
@@ -1663,13 +1660,13 @@ IF /I !MODLOADER!==FORGE (
 
 REM Setting the LAUNCHLINE for Neoforge is different depending on it being either the initial 1.20.1 version or all other versions after.
 IF /I !MODLOADER!==NEOFORGE (
-  IF !MINECRAFT!==1.20.1 SET "LAUNCHLINE=!MAXRAM! !USEARGS! @libraries/net/neoforged/forge/!MINECRAFT!-!NEOFORGE!/win_args.txt nogui %%*"
-  IF !MINECRAFT! NEQ 1.20.1 SET "LAUNCHLINE=!MAXRAM! !USEARGS! @libraries/net/neoforged/neoforge/!NEOFORGE!/win_args.txt nogui %%*"
+  IF !MINECRAFT!==1.20.1 SET "LAUNCHLINE=!MAXRAM! !USEARGS! @libraries/net/neoforged/forge/!MINECRAFT!-!MODLOADERVERSION!/win_args.txt nogui %%*"
+  IF !MINECRAFT! NEQ 1.20.1 SET "LAUNCHLINE=!MAXRAM! !USEARGS! @libraries/net/neoforged/neoforge/!MODLOADERVERSION!/win_args.txt nogui %%*"
 )
 
 :: Setting the LAUNCHLINE for Fabric, Quilt, and Vanilla is always the same regardless of Minecraft version.
-IF /I !MODLOADER!==FABRIC SET "LAUNCHLINE=!MAXRAM! !USEARGS! -jar fabric-server-launch-!MINECRAFT!-!FABRICLOADER!.jar nogui"
-IF /I !MODLOADER!==QUILT SET "LAUNCHLINE=!MAXRAM! !USEARGS! -jar quilt-server-launch-!MINECRAFT!-!QUILTLOADER!.jar nogui"
+IF /I !MODLOADER!==FABRIC SET "LAUNCHLINE=!MAXRAM! !USEARGS! -jar fabric-server-launch-!MINECRAFT!-!MODLOADERVERSION!.jar nogui"
+IF /I !MODLOADER!==QUILT SET "LAUNCHLINE=!MAXRAM! !USEARGS! -jar quilt-server-launch-!MINECRAFT!-!MODLOADERVERSION!.jar nogui"
 IF /I !MODLOADER!==VANILLA SET "LAUNCHLINE=!MAXRAM! !USEARGS! -jar minecraft_server.!MINECRAFT!.jar nogui"
 
 :: ACTUALLY LAUNCH THE SERVER FILES!
@@ -1834,9 +1831,15 @@ IF [!EMPTYCHECK!]==[] (
 :: NEW STYLE (MC >1.12.2) mods.toml FILES IN MODS
 :: BIG COMMAND to parse through all jar files toml files.  If you want to more easily understand the filtering, ask some chatbot AI to help you expand it to multi-line.
 :: New totally-maintainable Copilot-GPT helped powershell command to find modID and clientOnlySide values inside mods.toml or neoforge.mods.toml files
-IF !MCMAJOR! GTR 12 FOR /F "tokens=1-4 delims=#" %%A IN ('powershell -Command "$i=1; $files = Get-ChildItem -Path .\mods -Filter *.jar; foreach ($f in $files) { try { $content = $null; foreach ($toml in @('META-INF/mods.toml', 'META-INF/neoforge.mods.toml')) { $content = (tar xOf $f.FullName $toml 2>$null); if ($content) { break } }; if (-not $content) { throw 'No toml found' }; $section = ([regex]::Matches($content, '\[mods\][\s\S]*?modId\s*=\s*([^,\r\n\t]+)', [System.Text.RegularExpressions.RegexOptions]::Singleline) | Select-Object -First 1).Groups[1].Value; $trimmed = if ($section -match '.*?"""".*?""""') { $section.Substring(0, $section.IndexOf('""""', $section.IndexOf('""""') + 1) + 1) } else { $section }; $client = if ($content -match 'clientSideOnly\s*=\s*([YN])') { $matches[1] } else { 'N' }; [string]::Concat($f.Name, '#', $(if ($trimmed) { $trimmed.Trim(' ','''','""""') } else { 'x' }), '#', $client, '#', $i++)} catch { [string]::Concat($f.Name, '#x#N#', $i++) }}"') DO (
+:: The -replace for single to double quotes is to prepare modID= entries that use single quotes instead of double quotes, for evaluation.
+IF !MCMAJOR! GTR 12 FOR /F "tokens=1-4 delims=#" %%A IN ('powershell -Command "$i=1; $files = Get-ChildItem -Path .\mods -Filter *.jar; foreach ($f in $files) { try { $content = $null; foreach ($toml in @('META-INF/mods.toml', 'META-INF/neoforge.mods.toml')) { $content = (tar xOf $f.FullName $toml 2>$null) -replace '''', '""' ; if ($content) { break } }; if (-not $content) { throw 'No toml found' }; $section = ([regex]::Matches($content, '\[mods\][\s\S]*?modId\s*=\s*([^,\r\n\t]+)', [System.Text.RegularExpressions.RegexOptions]::Singleline) | Select-Object -First 1).Groups[1].Value; $trimmed = if ($section -match '.*?"""".*?""""') { $section.Substring(0, $section.IndexOf('""""', $section.IndexOf('""""') + 1) + 1) } else { $section }; $client = if ($content -match 'clientSideOnly\s*=\s*([YN])') { $matches[1] } else { 'N' }; [string]::Concat($f.Name, '#', $(if ($trimmed) { $trimmed.Trim(' ','''','""""') } else { 'x' }), '#', $client, '#', $i++)} catch { [string]::Concat($f.Name, '#x#N#', $i++) }}"') DO (
+
+    REM Gets the string length of the id being returned from powershell, if it's more then 50 characters then something is wrong and just record as an x.
+    CALL :StringLength "STRLEN" "%%B"
+    IF !STRLEN! LEQ 50 ( SET "SERVERMODS[%%D].id=%%B" ) ELSE ( SET "SERVERMODS[%%D].id=x" )
+    SET "SERVERMODS[%%D].id=!SERVERMODS[%%D].id: =!"
+    REM Sets the file and any possible clientSideOnly flag detected
     SET "SERVERMODS[%%D].file=%%A"
-    SET "SERVERMODS[%%D].id=%%B"
     SET "SERVERMODS[%%D].clientmarked=%%C"
     ECHO SCANNING %%D/!SERVERMODSCOUNT! - %%A
 )
@@ -1853,15 +1856,11 @@ IF !MCMAJOR! LEQ 12 FOR /F "tokens=1-3 delims=#" %%A IN ('powershell -Command "$
 )
 
 :: Scans for nuisance mods which won't get caught by mods.toml / neoforge.mods.toml / mcmod.info scanning, usually because they have no such file and are JAR mods.
-
 :: If Essential pattern match found then see if it's Essential and just move it out silently. Only when scanning for Forge/Neoforge - fabric versions have a fabric.mods.json.
 DIR /B "mods\*essential*.jar" 2>nul | FINDSTR .>nul && FOR /F "delims=" %%T IN ('"DIR /B ""mods\*essential*.jar"" 2>nul"') DO (
   IF NOT EXIST "CLIENTMODS" MD "CLIENTMODS"
   tar -xOf "mods\%%T" *\essential-loader.properties >nul 2>&1 && MOVE "mods\%%T" "CLIENTMODS\" >nul 2>&1
 )
-
-
-
 
 :: This is it! Checking each server modid versus the client only mods list text file.  Starts with a loop through each server modID found.
 SET /a NUMCLIENTS=0
@@ -1879,7 +1878,7 @@ FOR /L %%b IN (1,1,!SERVERMODSCOUNT!) DO (
     REM That variable is compared to the server modID in question.  If they are equal then it is a definite match and the modID and filename are recorded to a list of client only mods found.
     FINDSTR /I /C:"!SERVERMODS[%%b].id!" univ-utils\clientonlymods.txt >nul && (
       FOR /F "delims=" %%A IN ('FINDSTR /I /R /C:"!SERVERMODS[%%b].id!" univ-utils\clientonlymods.txt') DO (
-        IF /I !SERVERMODS[%%b].id!==%%A (
+        IF /I "!SERVERMODS[%%b].id!"=="%%A" (
           SET /a NUMCLIENTS+=1
           SET "FOUNDCLIENTS[!NUMCLIENTS!].id=!SERVERMODS[%%b].id!"
           SET "FOUNDCLIENTS[!NUMCLIENTS!].file=!SERVERMODS[%%b].file!"
@@ -2673,6 +2672,7 @@ FOR /F %%A IN ('DIR /B') DO (
   IF %%A==kubejs SET "ZIPFILE[!ZIPCOUNT!]=kubejs" & SET /a ZIPCOUNT+=1
   IF %%A==mods SET "ZIPFILE[!ZIPCOUNT!]=mods" & SET /a ZIPCOUNT+=1
   IF %%A==scripts SET "ZIPFILE[!ZIPCOUNT!]=scripts" & SET /a ZIPCOUNT+=1
+  IF %%A==server-icon.png SET "ZIPFILE[!ZIPCOUNT!]=server-icon.png" & SET /a ZIPCOUNT+=1
   IF %%A==server.properties SET "ZIPFILE[!ZIPCOUNT!]=server.properties" & SET /a ZIPCOUNT+=1
   IF %%A==settings-universalator.txt SET "ZIPFILE[!ZIPCOUNT!]=settings-universalator.txt" & SET /a ZIPCOUNT+=1
   ECHO %%A | FINDSTR /BI "Universalator" >nul
@@ -3071,11 +3071,9 @@ IF NOT EXIST "%HERE%\univ-utils\java" (
   GOTO :mainmenu
 )
 :: Presets a variable to use as a search string versus java folder names.
-IF !JAVAVERSION!==8 SET FINDFOLDER=jdk8u
-IF !JAVAVERSION!==11 SET FINDFOLDER=jdk-11
-IF !JAVAVERSION!==16 SET FINDFOLDER=jdk-16
-IF !JAVAVERSION!==17 SET FINDFOLDER=jdk-17
-IF !JAVAVERSION!==21 SET FINDFOLDER=jdk-21
+IF ( !JAVAVERSION!==8 SET "FINDFOLDER=jdk8u" ) ELSE (
+  SET "FINDFOLDER=jdk-!JAVAVERSION!"
+)
 
 :: Uses ver >nul to ensure that the errorlevel is reset to 0, before testing. 
 ver >nul
@@ -3919,6 +3917,189 @@ IF DEFINED MINECRAFT IF DEFINED MODLOADER IF DEFINED MODLOADERVERSION IF DEFINED
 EXIT /B
 :: END FUNCTION TO CONVERT LINUX SETTINGS FILE TO WINDOWS SETTINGS FILE
 
+:: FUNCTION TO CREATE A SERVER ICON PNG FILE
+:icon_make
+:: Sub-menu to allow user to choose which icon type to generate - a blank blue icon with yellow 'Univ' text, or a blank icon of selectable color with no text.
+SET "COLOR=PICK A COLOR"
+SET "TEXTCOLOR=White"
+SET "CUSTOMTEXT=<blank>"
+:icon_choice_loop
+CLS
+ECHO: & ECHO: & ECHO   %red% SERVER ICON / LOGO GENERATION MENU %blue% & ECHO:
+ECHO   %yellow% - You can choose to generate a simple blue icon with yellow 'Univ' text %blue%
+ECHO   %yellow% - You can choose to generate a BLANK icon of a solid color, with optional text %blue% & ECHO:
+ECHO   %yellow%   Edit the any of the generated PNG icons with an image editor of of your choice^^!   %blue% & ECHO:
+ECHO   %green% 1 %blue% GENERATE a default blue icon with yellow 'Univ' text %blue% & ECHO:
+ECHO   %yellow% or %blue% & ECHO:
+ECHO   %green% 2 %blue% Pick new BACKGROUND COLOR for icon %blue%
+ECHO   %green% 3 %blue% Enter TEXT to use and have printed diagonally %blue%
+ECHO   %green% 4 %blue% Pick new TEXT COLOR %blue% & ECHO:
+ECHO   %green% 5 %blue% GENERATE %yellow% !COLOR! %blue% icon - with %yellow% !CUSTOMTEXT! %blue% text colored %yellow% !TEXTCOLOR! %blue% & ECHO:
+
+
+SET /P SCRATCH="%blue%  %green% ENTRY (M for Main Menu): %blue% " <nul
+SET /P "ENTRY="
+IF /I !ENTRY!==M ( GOTO :main_menu )
+IF /I !ENTRY! NEQ 1 IF /I !ENTRY! NEQ 2 IF /I !ENTRY! NEQ 3 IF /I !ENTRY! NEQ 4 IF /I !ENTRY! NEQ 5 GOTO :icon_choice_loop
+IF /I !ENTRY!==1 (
+  powershell -Command "Add-Type -AssemblyName System.Drawing;$bitmap = New-Object System.Drawing.Bitmap(64, 64);$graphics = [System.Drawing.Graphics]::FromImage($bitmap);$graphics.Clear([System.Drawing.Color]::Blue);$font = New-Object System.Drawing.Font('Consolas', 24, [System.Drawing.FontStyle]::Bold);$brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::Yellow);$graphics.DrawString('Un', $font, $brush, 0, 0);$graphics.DrawString('iv', $font, $brush, 20, 26);$bitmap.Save('server-icon.png', [System.Drawing.Imaging.ImageFormat]::Png);$graphics.Dispose();$bitmap.Dispose();"
+  IF EXIST server-icon.png (
+    ECHO   %yellow% A blue icon with yellow 'Univ' text was generated and saved as server-icon.png ^^! %blue% & ECHO:
+  ) ELSE (
+    ECHO   %red% OOPS - It looks like something went wrong and the icon file was not created. %blue% & ECHO:
+  )
+  PAUSE & EXIT /B
+)
+:color_entry
+IF /I !ENTRY!==2 (
+  REM Prompts the user to enter a color for the blank icon, then checks to see if it's a valid html color name.
+  CLS
+  ECHO: & ECHO: & ECHO   %red% BLANK ICON COLOR SELECTION %blue% & ECHO:
+  ECHO   %yellow% Please enter a color for the blank icon ^(e.g. Red, Green, Blue, DarkGoldenRod, LightSlateGray^)^: %blue% & ECHO:
+  ECHO   %yellow% Any valid HTML COLOR NAME is allowed %blue% & ECHO:
+  SET /P SCRATCH="%blue%  %green% COLOR ENTRY (L to List all HTML COLORS): %blue% " <nul
+  SET /P "COLOR="
+  IF /I !COLOR!==L (
+    REM Prints a list of all the color options to screen
+    CLS
+    powershell -Command "Add-Type -AssemblyName System.Drawing;$colors=([System.Drawing.Color].DeclaredProperties | Where {$_.PropertyType -eq [System.Drawing.Color]} | Select name); $colors.name"
+    ECHO: & PAUSE
+    GOTO :color_entry
+  )
+
+  REM uses powershell command like above but returns true or false to determine if valid color name
+    ver >nul
+  powershell -Command "Add-Type -AssemblyName System.Drawing; if ([System.Drawing.Color]::FromName('!COLOR!').IsKnownColor) { exit 0 } else { exit 1 }" >nul
+  IF !ERRORLEVEL!==1 ( ECHO: & ECHO   %red% Invalid color name - please try again %blue% & ECHO: & PAUSE & GOTO :color_entry )
+  FOR /F "tokens=1 delims==" %%A IN ('powershell -Command "Add-Type -AssemblyName System.Drawing;[System.Drawing.Color]::!COLOR!.Name"') DO SET "COLOR=%%A"
+
+  GOTO :icon_choice_loop
+)
+
+IF /I !ENTRY!==3 (
+  CLS
+  ECHO: & ECHO: & ECHO   %red% CUSTOM TEXT ICON GENERATION %blue% & ECHO:
+  ECHO   %yellow% Enter the text you want to appear on the icon. %blue%
+  ECHO   %yellow% The text will be scaled to fit the size of the 64 by 64 pixel icon, and be diagonal. %blue% & ECHO:
+  ECHO   %yellow% Only up to 10 characters is allowed. %blue% & ECHO:
+  SET "ORIGINALTEXT=!CUSTOMTEXT!"
+  SET "CUSTOMTEXT="
+  SET /P SCRATCH="%blue%  %green% ENTER TEXT: %blue% "<nul
+  SET /P "CUSTOMTEXT="
+  IF NOT DEFINED CUSTOMTEXT ( SET "CUSTOMTEXT=<blank>" & GOTO :icon_choice_loop )
+
+  REM Tests the character length and complains if it's more than 10 characters
+  FOR /F %%A IN ('powershell -Command "$string = '!CUSTOMTEXT!'; if ($string.Length -gt 10 ) { echo N} else { echo Y}"') DO ( SET "VALIDLENGTH=%%A" )
+  IF !VALIDLENGTH!==N (
+    CLS
+    ECHO: & ECHO: & ECHO   %red% OOPS - THE ENTERED TEXT IS TOO LONG - MAXIMUM 10 CHARACTERS %blue% & ECHO: & ECHO:
+    ECHO   %yellow% Please enter text that is 10 characters or less. %blue% & ECHO:
+    SET "CUSTOMTEXT=!ORIGINALTEXT!"
+    PAUSE
+    GOTO :icon_choice_loop
+  )
+
+  REM Uses powershell to determine a font size that fits within 85 pixels.  The 64x64 pixel PNG is 90.5 pixels diagonally.
+  FOR /F "delims=" %%A IN ('powershell -Command "Add-Type -AssemblyName System.Drawing; Add-type -AssemblyName System.Windows.Forms; $string='!CUSTOMTEXT!'; $targetWidth = 85; $minFontSize = 6; $font = New-Object System.Drawing.Font('Consolas', 30, [System.Drawing.FontStyle]::Bold); while ($true) { $textSize = [System.Windows.Forms.TextRenderer]::MeasureText($string, $font); if ($textSize.Width -le $targetWidth) { break } else { $newSize = $font.Size - 1; if ($newSize -lt $minFontSize) { break }; $font.Dispose(); $font = New-Object System.Drawing.Font('Consolas', $newSize) } }; $font.Size"') DO (
+    SET "FONTSIZE=%%A"
+  )
+
+  GOTO :icon_choice_loop
+)
+
+:text_color_entry
+IF /I !ENTRY!==4 (
+  REM Prompts the user to enter a color for the blank icon, then checks to see if it's a valid html color name.
+  CLS
+  ECHO: & ECHO: & ECHO   %red% TEXT COLOR SELECTION %blue% & ECHO:
+  ECHO   %yellow% Please enter a color for the blank icon ^(e.g. Red, Green, Blue, DarkGoldenRod, LightSlateGray^)^: %blue% & ECHO:
+  ECHO   %yellow% Any valid HTML COLOR NAME is allowed %blue% & ECHO:
+  SET /P SCRATCH="%blue%  %green% COLOR ENTRY (L to List all HTML COLORS): %blue% " <nul
+  SET /P "TEXTCOLOR="
+  IF /I !TEXTCOLOR!==L (
+    REM Prints a list of all the color options to screen
+    CLS
+    powershell -Command "Add-Type -AssemblyName System.Drawing;$colors=([System.Drawing.Color].DeclaredProperties | Where {$_.PropertyType -eq [System.Drawing.Color]} | Select name); $colors.name"
+    ECHO: & PAUSE
+    GOTO :text_color_entry
+  )
+
+  REM uses powershell command like above but returns true or false to determine if valid color name
+  ver >nul
+  powershell -Command "Add-Type -AssemblyName System.Drawing; if ([System.Drawing.Color]::FromName('!TEXTCOLOR!').IsKnownColor) { exit 0 } else { exit 1 }" >nul
+  IF !ERRORLEVEL!==1 ( ECHO: & ECHO   %red% Invalid color name - please try again %blue% & ECHO: & PAUSE & GOTO :text_color_entry )
+  FOR /F "tokens=1 delims==" %%A IN ('powershell -Command "Add-Type -AssemblyName System.Drawing;[System.Drawing.Color]::!TEXTCOLOR!.Name"') DO SET "TEXTCOLOR=%%A"
+
+  GOTO :icon_choice_loop
+)
+
+IF /I !ENTRY!==5 (
+  REM First if everything is in order just make the PNG
+  IF "!CUSTOMTEXT!" NEQ "<blank>" IF "!COLOR!" NEQ "PICK A COLOR" (
+    REM If a server-icon.png file already exists then rename the file with an integer added, one greater than any existing with the same format.
+    IF EXIST server-icon.png (
+      SET /A count=1
+      :findnext
+      IF EXIST server-icon!count!.png (
+        SET /A count+=1
+        GOTO :findnext
+      )
+      REN server-icon.png server-icon!count!.png
+    )
+    powershell -Command "Add-Type -AssemblyName System.Drawing;$bitmap = New-Object System.Drawing.Bitmap(64, 64);$graphics = [System.Drawing.Graphics]::FromImage($bitmap);$graphics.Clear([System.Drawing.Color]::!COLOR!);$font = New-Object System.Drawing.Font('Consolas', !FONTSIZE!, [System.Drawing.FontStyle]::Bold);$brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::!TEXTCOLOR!);$stringFormat = New-Object System.Drawing.StringFormat;$stringFormat.Alignment = 'Center';$stringFormat.LineAlignment = 'Center';$graphics.TranslateTransform(32, 32);$graphics.RotateTransform(-45);$graphics.DrawString('!CUSTOMTEXT!', $font, $brush, 0, 0, $stringFormat);$bitmap.Save('server-icon.png', [System.Drawing.Imaging.ImageFormat]::Png);$graphics.Dispose();$bitmap.Dispose();"
+    ECHO   %yellow% A !COLOR! icon with custom text^: !CUSTOMTEXT! %blue% was generated and saved as server-icon.png ^^! %blue% & ECHO:
+    PAUSE
+    GOTO :icon_choice_loop
+  )
+  REM If no text is entered then make a blank icon of the selected color. If no color was selected throw a warning and return to the loop to try again
+  IF "!CUSTOMTEXT!"=="<blank>" (
+    IF "!COLOR!"=="PICK A COLOR" (
+      CLS
+      ECHO: & ECHO: & ECHO   %red% OOPS - NO COLOR WAS SELECTED %blue% & ECHO:
+      ECHO   %yellow% Please select a color for the blank icon first. %blue% & ECHO:
+      PAUSE
+      GOTO :icon_choice_loop
+    )
+    REM If a server-icon.png file already exists then rename the file with an integer added, one greater than any existing with the same format.
+    IF EXIST server-icon.png (
+      SET /A count=1
+      :findnext
+      IF EXIST server-icon!count!.png (
+        SET /A count+=1
+        GOTO :findnext
+      )
+      REN server-icon.png server-icon!count!.png
+    )
+    powershell -Command "Add-Type -AssemblyName System.Drawing;$bitmap = New-Object System.Drawing.Bitmap(64, 64);$graphics = [System.Drawing.Graphics]::FromImage($bitmap);$graphics.Clear([System.Drawing.Color]::!COLOR!);$bitmap.Save('server-icon.png', [System.Drawing.Imaging.ImageFormat]::Png);$graphics.Dispose();$bitmap.Dispose();"
+    ECHO   %yellow% A blank icon with color^: !COLOR! %blue% was generated and saved as server-icon.png ^^! %blue% & ECHO:
+    PAUSE
+    GOTO :icon_choice_loop
+  )
+  REM Now if no text was entered make a blank icon with the selected color. First, if no color was selected throw a warning and return to the loop to try again
+  IF "!COLOR!"=="PICK A COLOR" (
+    CLS
+    ECHO: & ECHO: & ECHO   %red% OOPS - NO COLOR WAS SELECTED %blue% & ECHO:
+    ECHO   %yellow% Please select a color for the icon first. %blue% & ECHO:
+    PAUSE
+    GOTO :icon_choice_loop
+  )
+  REM If a server-icon.png file already exists then rename the file with an integer added, one greater than any existing with the same format.
+  IF EXIST server-icon.png (
+    SET /A count=1
+    :findnext
+    IF EXIST server-icon!count!.png (
+      SET /A count+=1
+      GOTO :findnext
+    )
+    REN server-icon.png server-icon!count!.png
+  )
+  powershell -Command "Add-Type -AssemblyName System.Drawing;$bitmap = New-Object System.Drawing.Bitmap(64, 64);$graphics = [System.Drawing.Graphics]::FromImage($bitmap);$graphics.Clear([System.Drawing.Color]::!COLOR!);$font = New-Object System.Drawing.Font('Consolas', !FONTSIZE!, [System.Drawing.FontStyle]::Bold);$brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::!TEXTCOLOR!);$stringFormat = New-Object System.Drawing.StringFormat;$stringFormat.Alignment = 'Center';$stringFormat.LineAlignment = 'Center';$graphics.TranslateTransform(32, 32);$graphics.RotateTransform(-45);$graphics.DrawString('!CUSTOMTEXT!', $font, $brush, 0, 0, $stringFormat);$bitmap.Save('server-icon.png', [System.Drawing.Imaging.ImageFormat]::Png);$graphics.Dispose();$bitmap.Dispose();"
+  ECHO   %yellow% A !COLOR! icon with custom text^: !CUSTOMTEXT! %blue% was generated and saved as server-icon.png ^^! %blue% & ECHO:
+  PAUSE
+  GOTO :icon_choice_loop
+)
+:: END FUNCTION TO CREATE A SERVER ICON PNG FILE
+
 :: FUNCTIONS FOR UTILITY
 
 :: Function to edit the server.properties file.  The function is passed two parameters, a property %1 and value %2.  Only one entry is evaluated and changed.
@@ -4030,3 +4211,24 @@ IF "!TEMP:~-1!"==" " (
   EXIT /B 
 )
 EXIT /B
+
+:: FUNCTION TO MEASURE THE LENGTH OF THE STRING PASSED TO IT
+:: https://stackoverflow.com/a/5841587 - note that doublequotes are not counted in length.
+:: Usage: CALL :StringLength resultvarname string
+:StringLength
+SETLOCAL ENABLEDELAYEDEXPANSION
+SET "string=%~2"
+IF DEFINED string (
+    SET L=1
+    FOR %%P IN (4096 2048 1024 512 256 128 64 32 16 8 4 2 1) DO (
+        IF "!string:~%%P,1!" NEQ "" (
+            SET /A L += %%P
+            SET "string=!string:~%%P!"
+        )
+    )
+) ELSE ( SET L=0 )
+(
+    ENDLOCAL
+    SET %~1=%L%
+    EXIT /B
+)
