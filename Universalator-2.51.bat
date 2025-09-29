@@ -1753,19 +1753,21 @@ IF EXIST "mods" (
   )
 
   CLS
+  REM Checks to see if the PSToml module is installed, which can be used for parsing toml files.  Sets a variable equal to T or F depending on whether it's found.
+  FOR /F "delims=" %%A IN ('powershell -Command "try { if (Get-Module -ListAvailable -Name PSToml) { Write-Output 'T' } else { Write-Output 'F' } } catch { Write-Output 'F' }"') DO ( SET "PSTOMLFOUND=%%~A" )
   ECHO: & ECHO:
   ECHO   %yellow% CLIENT MOD SCANNING - CLIENT MOD SCANNING %blue% & ECHO:
   ECHO:
-  ECHO       --MANY CLIENT MODS ARE NOT CODED TO SELF DISABLE ON SERVERS AND MAY CRASH THEM & ECHO:
-  ECHO       --THE UNIVERSALATOR SCRIPT CAN SCAN THE MODS FOLDER AND SEE IF ANY ARE PRESENT & ECHO:
-  ECHO         For an explanation of how the script scans files - visit the official wiki at:
-  ECHO         https://github.com/nanonestor/universalator/wiki
+  ECHO       -- MANY CLIENT MODS ARE NOT CODED TO SELF DISABLE ON SERVERS AND MAY CRASH THEM & ECHO:
+  ECHO       -- THE UNIVERSALATOR SCRIPT CAN SCAN THE MODS FOLDER AND SEE IF ANY ARE PRESENT & ECHO:
+  IF "!PSTOMLFOUND!"=="F" ECHO       ** You don't appear to have the powershell module named 'PSToml' installed. %blue% & ECHO: & ECHO              It's not required, but if you are having trouble when running the scan, & ECHO              you can install this powershell module to get better results. & ECHO                https://www.powershellgallery.com/packages/PSToml%blue% &ECHO:
+  IF "!PSTOMLFOUND!"=="T" ECHO       -- You have the powershell module 'PSToml' installed^^!  SCAN will run using proper TOML file parsing^^! & ECHO:
   ECHO:
   ECHO   %yellow% CLIENT MOD SCANNING - CLIENT MOD SCANNING %blue% & ECHO:
   ECHO:
   ECHO      %green% WOULD YOU LIKE TO SCAN THE MODS FOLDER FOR MODS THAT ARE NEEDED ONLY ON CLIENTS? %blue%
   ECHO      %green% FOUND CLIENT MODS CAN BE AUTOMATICALLY MOVED TO A DIFFERENT FOLDER FOR STORAGE. %blue%
-  ECHO: & ECHO: & ECHO:
+  ECHO:
   ECHO             %yellow% Please choose 'Y' or 'N' %blue%
   ECHO:
   SET /P SCRATCH="%blue%  %green% ENTRY: %blue% " <nul
@@ -1832,8 +1834,23 @@ IF [!EMPTYCHECK!]==[] (
 :: BIG COMMAND to parse through all jar files toml files.  If you want to more easily understand the filtering, ask some chatbot AI to help you expand it to multi-line.
 :: New totally-maintainable Copilot-GPT helped powershell command to find modID and clientOnlySide values inside mods.toml or neoforge.mods.toml files
 :: The -replace for single to double quotes is to prepare modID= entries that use single quotes instead of double quotes, for evaluation.
-IF !MCMAJOR! GTR 12 FOR /F "tokens=1-4 delims=#" %%A IN ('powershell -Command "$i=1; $files = Get-ChildItem -Path .\mods -Filter *.jar; foreach ($f in $files) { try { $content = $null; foreach ($toml in @('META-INF/mods.toml', 'META-INF/neoforge.mods.toml')) { $content = (tar xOf $f.FullName $toml 2>$null) -replace '''', '""' ; if ($content) { break } }; if (-not $content) { throw 'No toml found' }; $section = ([regex]::Matches($content, '\[mods\][\s\S]*?modId\s*=\s*([^,\r\n\t]+)', [System.Text.RegularExpressions.RegexOptions]::Singleline) | Select-Object -First 1).Groups[1].Value; $trimmed = if ($section -match '.*?"""".*?""""') { $section.Substring(0, $section.IndexOf('""""', $section.IndexOf('""""') + 1) + 1) } else { $section }; $client = if ($content -match 'clientSideOnly\s*=\s*([YN])') { $matches[1] } else { 'N' }; [string]::Concat($f.Name, '#', $(if ($trimmed) { $trimmed.Trim(' ','''','""""') } else { 'x' }), '#', $client, '#', $i++)} catch { [string]::Concat($f.Name, '#x#N#', $i++) }}"') DO (
 
+REM Checks to see if the PSToml module is installed, which can be used for parsing toml files.  Sets a variable equal to T or F depending on whether it's found.
+FOR /F "delims=" %%A IN ('powershell -Command "try { if (Get-Module -ListAvailable -Name PSToml) { Write-Output 'T' } else { Write-Output 'F' } } catch { Write-Output 'F' }"') DO ( SET "PSTOMLFOUND=%%~A" )
+
+REM IF PSToml is installed to powershell, the following powershell command can be used to more accurately find modIDs in mods.toml files.
+ IF !MCMAJOR! GTR 12 IF /I "!PSTOMLFOUND!"=="T" FOR /F "tokens=1-4 delims=#" %%A IN ('powershell -Command "Import-Module PSToml; $i=1; $files = Get-ChildItem -Path .\mods -Filter *.jar; foreach ($f in $files) { try { $content = $null; foreach ($toml in @('META-INF/mods.toml', 'META-INF/neoforge.mods.toml')) { $content = (tar xOf $f.FullName $toml 2>$null) ; if ($content) { break } }; if (-not $content) { throw 'No toml found' }; $tomldata = ConvertFrom-Toml $content; if (-not $tomldata.mods) { throw 'No mods section' }; $modid = if ($tomldata.mods[0].modId) { $tomldata.mods[0].modId } else { 'x' }; $client = if ($tomldata.mods[0].clientSideOnly -eq $true) { 'Y' } else { 'N' }; [string]::Concat($f.Name, '#', $modid, '#', $client, '#', $i++)} catch { [string]::Concat($f.Name, '#x#N#', $i++) }}"') DO (
+    REM Gets the string length of the id being returned from powershell, if it's more then 50 characters then something is wrong and just record as an x.
+    CALL :StringLength "STRLEN" "%%B"
+    IF !STRLEN! LEQ 50 ( SET "SERVERMODS[%%D].id=%%B" ) ELSE ( SET "SERVERMODS[%%D].id=x" )
+    SET "SERVERMODS[%%D].id=!SERVERMODS[%%D].id: =!"
+    REM Sets the file and any possible clientSideOnly flag detected
+    SET "SERVERMODS[%%D].file=%%A"
+    SET "SERVERMODS[%%D].clientmarked=%%C"
+    ECHO SCANNING %%D/!SERVERMODSCOUNT! - %%A
+)     
+
+IF !MCMAJOR! GTR 12 IF /I "!PSTOMLFOUND!" NEQ "T" FOR /F "tokens=1-4 delims=#" %%A IN ('powershell -Command "$i=1; $files = Get-ChildItem -Path .\mods -Filter *.jar; foreach ($f in $files) { try { $content = $null; foreach ($toml in @('META-INF/mods.toml', 'META-INF/neoforge.mods.toml')) { $content = (tar xOf $f.FullName $toml 2>$null) -replace '''', '""' ; if ($content) { break } }; if (-not $content) { throw 'No toml found' }; $section = ([regex]::Matches($content, '\[mods\][\s\S]*?modId\s*=\s*([^,\r\n\t]+)', [System.Text.RegularExpressions.RegexOptions]::Singleline) | Select-Object -First 1).Groups[1].Value; $trimmed = if ($section -match '.*?"""".*?""""') { $section.Substring(0, $section.IndexOf('""""', $section.IndexOf('""""') + 1) + 1) } else { $section }; $client = if ($content -match 'clientSideOnly\s*=\s*([YN])') { $matches[1] } else { 'N' }; [string]::Concat($f.Name, '#', $(if ($trimmed) { $trimmed.Trim(' ','''','""""') } else { 'x' }), '#', $client, '#', $i++)} catch { [string]::Concat($f.Name, '#x#N#', $i++) }}"') DO (
     REM Gets the string length of the id being returned from powershell, if it's more then 50 characters then something is wrong and just record as an x.
     CALL :StringLength "STRLEN" "%%B"
     IF !STRLEN! LEQ 50 ( SET "SERVERMODS[%%D].id=%%B" ) ELSE ( SET "SERVERMODS[%%D].id=x" )
