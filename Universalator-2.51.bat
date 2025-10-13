@@ -1704,10 +1704,8 @@ IF "!LAUNCH!"=="UPNP" (
 color 1E
 
 :: If auto restart is enabled, check if server was purposely shut down or if should restart
-IF DEFINED RESTART IF !RESTART!==Y IF EXIST "logs\latest.log" FINDSTR /I "Stopping the server" "logs\latest.log" || (
-  SET /a RESARTCOUNT+=1
-  IF !RESTARTCOUNT! LEQ 5 GOTO :restartserver
-)
+IF DEFINED RESTART IF !RESTART!==Y IF EXIST "logs\latest.log" FINDSTR /I /C:"Stopping the server" "logs\latest.log" || SET /a RESTARTCOUNT+=1
+IF DEFINED RESTART IF !RESTART!==Y IF EXIST "logs\latest.log" FINDSTR /I /C:"Stopping the server" "logs\latest.log" || IF !RESTARTCOUNT! LEQ 5 GOTO :restartserver
 
 REM Go to common scan logs section
 CALL :logsscan
@@ -3088,7 +3086,7 @@ IF NOT EXIST "%HERE%\univ-utils\java" (
   GOTO :mainmenu
 )
 :: Presets a variable to use as a search string versus java folder names.
-IF ( !JAVAVERSION!==8 SET "FINDFOLDER=jdk8u" ) ELSE (
+IF !JAVAVERSION!==8 ( SET "FINDFOLDER=jdk8u" ) ELSE (
   SET "FINDFOLDER=jdk-!JAVAVERSION!"
 )
 
@@ -3109,12 +3107,12 @@ IF NOT DEFINED JAVAFOLDER (
 )
 SET FOUNDGOODFIREWALLRULE=IDK
 
-:: Uses the determined java file/folder location to look for a firewall rule set to use the java.exe
-:: This is done by looking at the latest.log file for a successful world spawn gen, which usually means that the server fully loaded at least once, giving the user time to accept the firewall 'allow'.
-:: If the java version / folder was just installed in this window session, skip this check entirely.  The variable could be un-set but it's easier to avoid shennanigans if it's just disabled for the rest of the session.
-:: If the Private firewall is turned off, skip this check entirely
+REM Uses the determined java file/folder location to look for a firewall rule set to use the java.exe
+REM This is done by looking at the latest.log file for a successful world spawn gen, which usually means that the server fully loaded at least once, giving the user time to accept the firewall 'allow'.
+REM If the java version / folder was just installed in this window session, skip this check entirely.  The variable could be un-set but it's easier to avoid shennanigans if it's just disabled for the rest of the session.
+REM If the Private firewall is turned off, skip this check entirely
 REM FOR /F "delims=" %%A IN ('powershell -Command "$data = Get-NetFirewallProfile -Name Private; $data.Enabled"') DO IF "%%A" NEQ "True" SET FOUNDGOODFIREWALLRULE=Y & GOTO :firewallresult
-:: Checks for firewall rules set for {inbound / true / allow}, with the strings {TCP} and {JAVAFOLDERPATH} in the line.
+REM Checks for firewall rules set for {inbound / true / allow}, with the strings {TCP} and {JAVAFOLDERPATH} in the line.
 REM SET "LONGJAVAFOLDER=%HERE%\univ-utils\java\!JAVAFOLDER!\bin\java.exe"
 
 REM FOR /F "delims=" %%A IN ('powershell -Command "$data = Get-NetFirewallRule -Direction Inbound -Enabled True -Action Allow; $data.name"') DO (
@@ -3124,13 +3122,17 @@ REM   IF "!TEMP!" NEQ "!TEMP:TCP=x!" IF "!TEMP!" NEQ "!TEMP:%LONGJAVAFOLDER%=x!"
 REM )
 
 
-REM :: Uses the determined java file/folder location to check for valid firewall rules
-REM :: Checks if Private firewall profile is enabled first
+REM Uses the determined java file/folder location to check for valid firewall rules
+REM Checks if Private firewall profile is enabled first
 SET "LONGJAVAFOLDER=%HERE%\univ-utils\java\!JAVAFOLDER!\bin\java.exe"
 
-FOR /F "delims=" %%A IN ('powershell -Command "$private = Get-NetFirewallProfile -Name Private; if(!$private.Enabled) { Write-Output $true } else { $rules = Get-NetFirewallRule -Direction Inbound -Enabled True -Action Allow; $foundTcp = $false; foreach($rule in $rules) { $ports = ($rule | Get-NetFirewallPortFilter); if($ports.LocalPort -contains ''!PORT!'' -and $ports.Protocol -eq ''TCP'') { $apps = ($rule | Get-NetFirewallApplicationFilter).Program; if($apps -contains ''!LONGJAVAFOLDER!'') { $foundTcp = $true; break; } } }; Write-Output $foundTcp }"') DO (
-     SET "FOUNDGOODFIREWALLRULE=%%A"
+ FOR /F "delims=" %%A IN ('powershell -Command "$private = Get-NetFirewallProfile -Name Private; if(!$private.Enabled) { Write-Output $true } else { $rules = Get-NetFirewallRule -Direction Inbound -Enabled True -Action Allow; $foundTcp = $false; foreach($rule in $rules) { $ports = ($rule | Get-NetFirewallPortFilter); if($ports.LocalPort -contains ''!PORT!'' -and $ports.Protocol -eq ''TCP'') { $apps = ($rule | Get-NetFirewallApplicationFilter).Program; if($apps -contains ''!LONGJAVAFOLDER!'') { $foundTcp = $true; break; } } }; Write-Output $foundTcp }"') DO (
+      SET "FOUNDGOODFIREWALLRULE=%%A"
 )
+
+REM FOR /F "delims=" %%A IN ('powershell -NoProfile -Command "param($port, $javaPath) $private = Get-NetFirewallProfile -Name Private; if (-not $private.Enabled) { $true } else { $rules = Get-NetFirewallRule -Direction Inbound -Enabled True -Action Allow; foreach ($rule in $rules) { $ports = ($rule | Get-NetFirewallPortFilter); if ($ports.LocalPort -contains $port -and $ports.Protocol -eq 'TCP') { $apps = ($rule | Get-NetFirewallApplicationFilter).Program; if ($apps -contains $javaPath) { $true; break; } } }; $false }" -ArgumentList !PORT!,"!LONGJAVAFOLDER!"') DO (
+REM   SET "FOUNDGOODFIREWALLRULE=%%A"
+REM )
 
 
 
