@@ -175,6 +175,7 @@ IF /I !MAINMENU!==OVERRIDE ( CALL :override )
 IF /I !MAINMENU!==MCREATOR IF EXIST "%HERE%\mods" ( CALL :mcreatorscan )
 IF /I !MAINMENU!==A GOTO :allcommands
 IF /I !MAINMENU!==ZIP ( CALL :zipit_function )
+IF /I !MAINMENU!==IMPORT ( CALL :import_curseforge_profile )
 IF /I !MAINMENU!==PORT ( CALL :portedit_function )
 IF /I !MAINMENU!==PROPS ( CALL :serverpropsedit_function )
 IF /I !MAINMENU!==FIREWALL ( CALL :firewallcheck )
@@ -217,7 +218,8 @@ ECHO:    %green% MODS/SMOD%blue% = VIEW ALL FILES ^& FOLDERS IN MODS FOLDER
 ECHO:    %green% ICON %blue%     = CREATE A DEFAULT SERVER ICON ICON FILE
 ECHO:    %green% MCREATOR %blue% = SCAN MOD FILES FOR MCREATOR MADE MODS
 ECHO:    %green% OVERRIDE %blue% = TOGGLE THE JAVA OVERRIDE STATUS
-ECHO:    %green% ZIP %blue%      = MENU FOR CREATING SERVER PACK ZIP FILE & ECHO:
+ECHO:    %green% ZIP %blue%      = MENU FOR CREATING SERVER PACK ZIP FILE
+ECHO:    %green% IMPORT %blue%   = IMPORT CURSEFORGE PROFILE & ECHO:
 :: Instead of yet another entry prompt, goes back to utilize the same main menu prompt and logic.  All-commands menu is really just an alternate main menu display.
 GOTO :allcommandsentry
 
@@ -309,12 +311,19 @@ EXIT /B
 
 :: FUNCTION TO PARSE THE MAJOR AND MINOR MC VERSION FROM MINECRAFT VERSION
 :get_mcmajorminor
-:: Stores the major and minor Minecraft version numbers in their own variables as integers. If no minor version then set MCMINOR to 0 to not blow up things that look at it.
+:: Stores the major and minor Minecraft version numbers in their own variables as integers. As of 2026 new MC versions will start with the year prefix and then a minor version - ex: 26.1
+::If no minor version then set MCMINOR to 0 to not blow up things that look at it.
 SET "MCMINOR="
-FOR /F "tokens=2,3 delims=." %%E IN ("!MINECRAFT!") DO (
-    SET /a MCMAJOR=%%E
-    SET /a MCMINOR=%%F >nul 2>&1
+FOR /F "tokens=1-3 delims=." %%A IN ("!MINECRAFT!") DO (
+  IF "%%A"=="1" (
+    SET /a MCMAJOR=%%B
+    SET /a MCMINOR=%%C >nul 2>&1
+  ) ELSE (
+    SET /a MCMAJOR=%%A
+    SET /a MCMINOR=%%B >nul 2>&1
+  )
 )
+:: Sets the minor version if not set - this is specifically for initial major versions for example 1.21 - Mojang does not use 0 when only a major version is specified.
 IF NOT DEFINED MCMINOR SET /a MCMINOR=0
 EXIT /B
 :: END FUNCTION TO PARSE MC VERSION
@@ -736,7 +745,9 @@ IF !MCMAJOR! LEQ 16 IF !MCMINOR! GEQ 5 SET "JAVAVERSION=8"
 IF !MCMAJOR!==17 SET "JAVAVERSION=16" & SET ONLY=Y
 IF !MCMAJOR! GEQ 18 SET "JAVAVERSION=17"
 IF !MCMAJOR!==20 IF !MCMINOR! GEQ 6 SET "JAVAVERSION=21"
-IF !MCMAJOR! GEQ 21 SET "JAVAVERSION=21"
+IF !MCMAJOR! EQU 21 SET "JAVAVERSION=21"
+IF !MCMAJOR! GTR 21 SET "JAVAVERSION=25" & SET ONLY=Y
+
 :: Exits if only one version is possible for the MC version being used.  If user got here from mainmenu J then give a message flash.
 IF /I !MAINMENU!==J IF !ONLY!==Y ( 
   ECHO   %yellow% The displayed Java version is the only version possible for this Minecraft version. %blue%
@@ -755,7 +766,7 @@ IF !MCMAJOR! EQU 16 IF !MCMINOR! EQU 5 ECHO   THE OPTIONS FOR MINECRAFT !MINECRA
 IF !MCMAJOR! GEQ 18 IF !MCMAJOR! LEQ 19 ECHO   THE OPTIONS FOR MINECRAFT !MINECRAFT! BASED LAUNCHING ARE %green% 17 %blue%, %green% 21 %blue%, AND %green% 25 %blue%
 IF !MCMAJOR!==20 IF !MCMINOR! LEQ 4 ECHO   THE OPTIONS FOR MINECRAFT !MINECRAFT! BASED LAUNCHING ARE %green% 17 %blue%, %green% 21 %blue%, AND %green% 25 %blue%
 IF !MCMAJOR!==20 IF !MCMINOR! GEQ 5 ECHO   THE OPTIONS FOR MINECRAFT !MINECRAFT! BASED LAUNCHING ARE %green% 21 %blue%, AND %green% 25 %blue%
-IF !MCMAJOR! GEQ 21 ECHO   THE OPTIONS FOR MINECRAFT !MINECRAFT! BASED LAUNCHING ARE %green% 21 %blue%, AND %green% 25 %blue%
+IF !MCMAJOR! EQU 21 ECHO   THE OPTIONS FOR MINECRAFT !MINECRAFT! BASED LAUNCHING ARE %green% 21 %blue%, AND %green% 25 %blue%
 
 ECHO:
 ECHO   * USING THE NEWER VERSION OPTION IF GIVEN A CHOICE %green% MAY %blue% OR %red% MAY NOT %blue% WORK DEPENDING ON MODS BEING LOADED
@@ -4118,6 +4129,159 @@ IF /I !ENTRY!==5 (
   GOTO :icon_choice_loop
 )
 :: END FUNCTION TO CREATE A SERVER ICON PNG FILE
+
+:: BEGIN FUNCTION FOR IMPORTING CURSEFORGE PROFILES
+:import_curseforge_profile
+
+:: Gets the location of the current Curseforge minecraft_root in the system registry
+SET "CF_FOLDER="
+FOR /f "tokens=1-3" %%i IN ('REG QUERY "HKCU\Software\Overwolf\Curseforge" /v "minecraft_root" 2^>nul') DO SET "CF_FOLDER=%%k"
+:: If no CF_FOLDER was found, flash a message that no folder was found and exit the function
+IF "%CF_FOLDER%"=="" (
+  ECHO: & ECHO: & ECHO: & ECHO   %red%   OOPS - NO CURSEFORGE MODDING FOLDER WAS FOUND %blue% & ECHO: & ECHO:
+  PAUSE
+  EXIT /B
+)
+
+:: Looks through each folder within %CF_FOLDER%\Instances\ location and saves as a psudo array each folder name which contains a file inside named exactly minecraftinstance.json
+SET "INSTANCE_FOLDERS="
+SET idx=0
+FOR /D %%A in ("%CF_FOLDER%\Instances\*") do (
+  IF EXIST "%%A\minecraftinstance.json" (
+    SET /A idx+=1
+    SET "INSTANCE_FOLDERS[!idx!]=%%A"
+  )
+)
+:: If no folders were found, flash a message that no folders were found and exit the function
+IF !idx! EQU 0 (
+  CLS
+  ECHO: & ECHO: & ECHO: & ECHO   %red%   OOPS - NO CURSEFORGE PROFILES WERE FOUND AT^: %blue% & ECHO: & ECHO   %CF_FOLDER%\Instances\ & ECHO: & ECHO:
+  PAUSE
+  EXIT /B
+)
+:: Now we have a list of available CurseForge profile folders and can make the selection menu
+:redo_import_menu
+CLS
+ECHO: & ECHO: 
+ECHO   %yellow% CURSEFORGE MODDING FOLDER: %blue% %CF_FOLDER%\Instances\ & ECHO:
+
+ECHO: & ECHO   %yellow%   AVAILABLE CURSEFORGE PROFILES^: %blue% & ECHO:
+FOR /L %%i IN (1,1,!idx!) DO (
+  SET "FOLDER_NAME=!INSTANCE_FOLDERS[%%i]:%CF_FOLDER%\Instances\=!"
+  ECHO   %green%^[%%i^]%blue% !FOLDER_NAME!
+)
+ECHO:
+ECHO   %yellow% SELECT A CURSEFORGE PROFILE BY ITS NUMBER OR 'M' FOR MAIN MENU^: %blue% & ECHO:
+SET /P SCRATCH="%blue% %green% ENTRY (or 'M' for main menu): %blue% " <nul
+SET /P entry=
+:: If entry is specifically M for main menu
+IF /I "%entry%"=="M" GOTO :main_menu
+:: Next tests if the entry is an integer - if not go directly to redo
+SET /A testentry=%entry% 2>nul
+IF "%testentry%" NEQ "%entry%" GOTO :redo_import_menu
+:: Next checks if the entry is within the valid range
+IF %entry% LSS 1 IF %entry% GTR !idx! GOTO :redo_import_menu
+:: Now we have a valid entry and sets the selected instance folder
+SET "CF_INSTANCE=!INSTANCE_FOLDERS[%entry%]!"
+
+:: Gets various details from the selected CurseForge profile's minecraftinstance.json file by parsing the JSON with powershell and saving values.  Does this one value at a time so that errors can be thrown
+
+:: Clears any previous values
+SET "TEMP_MODLOADERVERSION=" & SET "TEMP_MINECRAFT=" & SET "TEMP_MODLOADER=" & SET "TEMP_PROFILENAME="
+:: Gets the modloader version
+FOR /F "usebackq delims=" %%A IN (`powershell -Command "$data = (Get-Content -Raw -LiteralPath '!CF_INSTANCE!\minecraftinstance.json' | Out-String | ConvertFrom-Json); $data.baseModLoader.forgeVersion"`) DO (
+  SET TEMP_MODLOADERVERSION=%%A
+)
+:: Gets the game version
+FOR /F "usebackq delims=" %%A IN (`powershell -Command "$data = (Get-Content -Raw -LiteralPath '!CF_INSTANCE!\minecraftinstance.json' | Out-String | ConvertFrom-Json); $data.gameVersion"`) DO (
+  SET TEMP_MINECRAFT=%%A
+)
+:: Gets the modloader type which we have to parse from baseModLoader.name taking the string before the first hyphen as the actual name
+FOR /F "usebackq delims=" %%A IN (`powershell -Command "$data = (Get-Content -Raw -LiteralPath '!CF_INSTANCE!\minecraftinstance.json' | Out-String | ConvertFrom-Json); $data.baseModLoader.name"`) DO (
+  SET TEMP_MODLOADER=%%A
+)
+FOR /F "tokens=1 delims=-" %%A IN ("!TEMP_MODLOADER!") DO (
+  SET TEMP_MODLOADER=%%A
+)
+:: Gets the profile name
+FOR /F "usebackq delims=" %%A IN (`powershell -Command "$data = (Get-Content -Raw -LiteralPath '!CF_INSTANCE!\minecraftinstance.json' | Out-String | ConvertFrom-Json); $data.name"`) DO (
+  SET TEMP_PROFILENAME=%%A
+)
+
+goto :skip_cf_json_oops
+:: If any of the values are empty, flash a message and return to the redo menu - but otherwise skip
+IF EXIST "!TEMP_MODLOADERVERSION!" && IF EXIST "!TEMP_MINECRAFT!" && IF EXIST "!TEMP_MODLOADER!" && IF EXIST "!TEMP_PROFILENAME!" GOTO :skip_cf_json_oops
+
+ECHO: & ECHO: & ECHO: & ECHO   %red%   OOPS - ONE OR MORE REQUIRED VALUES WERE NOT FOUND IN THE SELECTED CURSEFORGE PROFILE %blue% & ECHO: & ECHO:
+PAUSE
+GOTO :redo_import_menu
+
+:skip_cf_json_oops
+:: Does a CLS and then does a report on what was found, asks Y or N to proceed
+CLS
+ECHO: & ECHO: & ECHO: & ECHO   %yellow%   CURSEFORGE PROFILE DETAILS^: %blue% & ECHO:
+ECHO   %yellow% Profile Name:      %blue% !TEMP_PROFILENAME!
+ECHO   %yellow% Minecraft Version: %blue% !TEMP_MINECRAFT!
+ECHO   %yellow% Modloader:         %blue% !TEMP_MODLOADER!
+ECHO   %yellow% Modloader Version: %blue% !TEMP_MODLOADERVERSION!
+ECHO: & ECHO:
+ECHO    If you continue, the selected CurseForge profile will be imported to this folder location. & ECHO:
+ECHO   %red% Any existing profile files in the folder will be removed or overwritten. %blue% & ECHO: & ECHO:
+SET /P SCRATCH="%blue%  %green% COPY THIS CURSEFORGE PROFILE? ('Y' or 'N'): %blue% " <nul
+SET /P entry=
+IF /I "!entry!"=="N" GOTO :redo_import_menu
+IF /I "!entry!" NEQ "Y" GOTO :redo_import_menu
+
+:: If Y then we get on with it.  Start with deleting a list of items commonly used - don't just delete all like a wrecking ball
+FOR %%F IN (blueprints config crash-reports datapacks defaultconfigs kubejs local logs modernfix mods patchouli_books resourcepacks schematics scripts screenshots shaderpacks xaero usercache.json usernamecache.json server-icon.png) DO (
+  IF EXIST "!HERE!\%%F" (
+    IF EXIST "!HERE!\%%F\*" (
+      RMDIR /S /Q "!HERE!\%%F"
+    ) ELSE (
+      DEL /Q "!HERE!\%%F"
+    )
+  )
+)
+:: Now copies the selected CurseForge profile to the destination folder except for the 'saves' folder.  Literally everything else is copied.
+ECHO: & ECHO   %yellow% COPYING CURSEFORGE PROFILE CONTENTS^: %blue% & ECHO:
+
+FOR /F %%F IN ('DIR /B "!CF_INSTANCE!"') DO (
+  REM Filters out some folders that are not used in servers
+  ECHO %%F | FINDSTR ".curseclient minecraftinstance.json crash-reports logs fancymenu_data natives saves screenshots shaderpacks" >nul || (
+    IF EXIST "!CF_INSTANCE!\%%F\*" (
+      XCOPY "!CF_INSTANCE!\%%F" "!HERE!\%%F" /E /H /I /Y /Q
+    ) ELSE (
+      COPY "!CF_INSTANCE!\%%F" "!HERE!\%%F" /Y >nul
+    )
+    ECHO    %%F
+  )
+)
+ECHO: & ECHO   %yellow% FINISHED COPYING CURSEFORGE PROFILE CONTENTS %blue% & ECHO:
+PAUSE
+
+:: Sets as final the values
+SET MINECRAFT=!TEMP_MINECRAFT!
+SET MODLOADERVERSION=!TEMP_MODLOADERVERSION!
+SET MODLOADER=!TEMP_MODLOADER!
+IF /I !MODLOADER!==FORGE SET MODLOADER=FORGE
+IF /I !MODLOADER!==FABRIC SET MODLOADER=FABRIC
+IF /I !MODLOADER!==QUILT SET MODLOADER=QUILT
+IF /I !MODLOADER!==NEOFORGE SET MODLOADER=NEOFORGE
+IF /I !MODLOADER!==VANILLA SET MODLOADER=VANILLA
+
+:: Calls the java and ram selection screens, stamps settings, asks to do a client mods SCAN.
+CALL :get_mcmajorminor
+CALL :setjava
+CALL :enter_ram
+CALL :stampsettingsfile
+CALL :clientmodsscan
+
+CLS
+ECHO: & ECHO: & ECHO: & ECHO   %yellow%   CURSEFORGE PROFILE IMPORT COMPLETE^^! %blue% & ECHO: & ECHO:
+PAUSE
+
+EXIT /B
+:: END FUNCTION FOR IMPORTING CURSEFORGE PROFILES
 
 :: FUNCTIONS FOR UTILITY
 
