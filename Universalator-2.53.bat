@@ -87,8 +87,24 @@ CALL :check_port_settings
 
 :: If no settings file exists but a linux settings file does, try to convert it to a windows settings file.
 IF NOT EXIST settings-universalator.txt IF EXIST settings-linux-universalator.txt ( CALL :convert_linux_settings )
+:: Checks to see if a registry key exists pointing to a Curseforge app modding folder location - Gets the location of the current Curseforge minecraft_root in the system registry
+SET "CF_FOLDER="
+FOR /f "tokens=1-3" %%i IN ('REG QUERY "HKCU\Software\Overwolf\Curseforge" /v "minecraft_root" 2^>nul') DO SET "CF_FOLDER=%%k"
+
 :: If no settings file exists yet then go directly to entering settings (first setting being Minecraft version)
-IF NOT EXIST settings-universalator.txt ( CALL :settingsentry )
+IF NOT EXIST settings-universalator.txt ( 
+  IF DEFINED CF_FOLDER (
+    CALL :query_import_or_manual
+    IF !IMPORTCHOICE!==I (
+        CALL :import_curseforge_profile
+        :: If the user backed out of the import menu with M go to manual settings entry
+        IF NOT EXIST settings-universalator.txt CALL :settingsentry
+        GOTO :mainmenu
+    )
+  )
+  :: Fallback to this if either no Curseforge folder found in registry, or user chose to manually enter settings.
+  CALL :settingsentry
+)
 
 :: END GENERAL PRE-RUN ITEMS
 
@@ -268,7 +284,7 @@ GOTO :mainmenu
 :: User entry for Minecraft version
 CLS
 IF NOT EXIST settings-universalator.txt (
-ECHO:%yellow%
+ECHO:
 %UNIV_HEADER%
 ECHO: & ECHO:
 ECHO    %green% Settings can be changed from main menu once all initial settings have been entered %blue%
@@ -4174,8 +4190,10 @@ ECHO:
 ECHO   %yellow% SELECT A CURSEFORGE PROFILE BY ITS NUMBER OR 'M' FOR MAIN MENU^: %blue% & ECHO:
 SET /P SCRATCH="%blue% %green% ENTRY (or 'M' for main menu): %blue% " <nul
 SET /P entry=
-:: If entry is specifically M for main menu
-IF /I "%entry%"=="M" GOTO :main_menu
+:: If entry is specifically M for main menu - but if no settings file exists then exit to back out and continue.
+IF /I "%entry%"=="M" (
+  IF EXIST settings-universalator.txt ( GOTO :main_menu ) ELSE ( EXIT /B )
+)
 :: Next tests if the entry is an integer - if not go directly to redo
 SET /A testentry=%entry% 2>nul
 IF "%testentry%" NEQ "%entry%" GOTO :redo_import_menu
@@ -4282,6 +4300,46 @@ PAUSE
 
 EXIT /B
 :: END FUNCTION FOR IMPORTING CURSEFORGE PROFILES
+
+:: BEGIN FUNCTION FOR ASKING TO IMPORT A CURSEFORGE PROFILE OR MANAGE SETTINGS AND FILES MANUALLY
+:query_import_or_manual
+
+:: Uses the CHOICE command to present a simple menu to the user either C for CurseForge import or M for manual settings
+:ask_import_again
+CLS
+ECHO:
+%UNIV_HEADER%
+ECHO: & ECHO: & ECHO:
+
+REM	CHOICE /C YQ /M "%RANDOCOLOR% Press [Y] to enter another search or [Q] to quit. %black%"
+REM	IF !ERRORLEVEL!==1 CLS & GOTO :search_start
+REM	IF !ERRORLEVEL!==2 GOTO :done
+
+
+
+REM ECHO   %yellow% IMPORT PROFILE OR MANUAL SETTINGS CHOICE %blue% & ECHO:
+
+ECHO       The script found a Curseforge Minecraft folder on the computer %blue% & ECHO: & ECHO:
+ECHO       You can choose to^: & ECHO:
+ECHO          - IMPORT an existing CurseForge profile folder %blue%
+ECHO          - Enter your own settings MANUALLY ( You will manage your own files ) %blue%
+ECHO:
+REM ECHO   %yellow% IMPORT PROFILE OR MANUAL SETTINGS CHOICE %blue% & ECHO:
+ECHO:
+ECHO    %green% Enter 'I' to Import %blue%
+ECHO    %green% Enter 'M' to Manually enter settings %blue% & ECHO:
+
+SET /P SCRATCH="%blue%   %green% ENTRY:%blue% " <nul
+SET /P "ENTRY="
+
+IF /I "!ENTRY!" NEQ "I" IF /I "!ENTRY!" NEQ "M" GOTO :ask_import_again
+IF /I "!ENTRY!"=="I" SET IMPORTCHOICE=I
+IF /I "!ENTRY!"=="M" SET IMPORTCHOICE=M
+
+EXIT /B
+
+
+:: END FUNCTION FOR IMPORTING CURSEFORGE PROFILES OR MANAGE SETTINGS AND FILES MANUALLY
 
 :: FUNCTIONS FOR UTILITY
 
