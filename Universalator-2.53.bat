@@ -4327,7 +4327,7 @@ ECHO:
 REM ECHO   %yellow% IMPORT PROFILE OR MANUAL SETTINGS CHOICE %blue% & ECHO:
 ECHO:
 ECHO    %green% Enter 'I' to Import %blue%
-ECHO    %green% Enter 'M' to Manually enter settings %blue% & ECHO:
+ECHO    %green% Enter 'M' to Manually input settings %blue% & ECHO:
 
 SET /P SCRATCH="%blue%   %green% ENTRY:%blue% " <nul
 SET /P "ENTRY="
@@ -4473,3 +4473,4 @@ IF DEFINED string (
     SET %~1=%L%
     EXIT /B
 )
+
