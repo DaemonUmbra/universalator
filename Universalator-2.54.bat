@@ -330,13 +330,16 @@ EXIT /B
 :: Stores the major and minor Minecraft version numbers in their own variables as integers. As of 2026 new MC versions will start with the year prefix and then a minor version - ex: 26.1
 ::If no minor version then set MCMINOR to 0 to not blow up things that look at it.
 SET "MCMINOR="
+SET "MCHOTFIX="
 FOR /F "tokens=1-3 delims=." %%A IN ("!MINECRAFT!") DO (
   IF "%%A"=="1" (
-    SET /a MCMAJOR=%%B
-    SET /a MCMINOR=%%C >nul 2>&1
+    SET /a "MCMAJOR=%%B"
+    SET /a "MCMINOR=%%C" >nul 2>&1
   ) ELSE (
-    SET /a MCMAJOR=%%A
-    SET /a MCMINOR=%%B >nul 2>&1
+    REM The new MC versioning style uses the first and second numbers as major and minor, and a posssible 3rd number for hotfix version.  If it's hotfix 0 there is no number appended.
+    SET /a "MCMAJOR=%%A"
+    SET /a "MCMINOR=%%B" >nul 2>&1
+    If [%%C] NEQ [] ( SET "MCHOTFIX=%%C" ) ELSE ( SET "MCHOTFIX=0" )
   )
 )
 :: Sets the minor version if not set - this is specifically for initial major versions for example 1.21 - Mojang does not use 0 when only a major version is specified.
@@ -617,19 +620,32 @@ IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT!==1.20.1 ( SET "NEWESTVERSION=47.1.106
 REM If Neoforge - parse the metadata file for the newest version number.
 IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 (
   SET "NEWESTVERSION="
-  SET /a idv=0
+  SET "idv="
+  IF !MCMAJOR! LSS 26 SET /a idv=0
+  IF !MCMAJOR! GEQ 26 IF NOT DEFINED MCHOTFIX SET /a MCHOTFIX=0
   REM Loops through all the lines of the metadata file, keeps setting a newest version variable if the line matches the MC version and it's a higher version than previously found in the loop.
   REM idv is a counter variable to check against for each loop.
-  IF !MINECRAFT! NEQ 1.20.1 FOR /F "tokens=1-4 delims=.-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\maven-neoforge-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
-    IF %%A==!MCMAJOR! IF %%B==!MCMINOR! (
-      IF %%C GTR !idv! ( 
-        SET idv=%%C
-        REM Saves the version if found to be newer, accounts for the D parameter being empty or not.  So far neoforge only uses that entry for 'beta' versions.
-        IF [%%D]==[] ( SET "NEWESTVERSION=%%A.%%B.%%C" ) ELSE ( SET "NEWESTVERSION=%%A.%%B.%%C-%%D" )
-      )
+  IF !MINECRAFT! NEQ 1.20.1 FOR /F "delims=" %%Q IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\maven-neoforge-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
+      FOR /F "tokens=1-5 delims=.-" %%A IN ("%%Q") DO (
+        IF %%A==!MCMAJOR! IF %%B==!MCMINOR! (
+          REM The original version where there was never an MC hotfix number
+          IF !MCMAJOR! LSS 26 IF %%C GTR !idv! ( 
+            SET "idv=%%C"
+            REM Saves the version if found to be newer, accounts for the D parameter being empty or not.  So far neoforge only uses that entry for 'beta' versions.
+            SET "NEWESTVERSION=%%Q"
+          )
+          REM the new version which has an MC hotfix version always in the Neoforge version, 0 if there is no hotfix number in the official MC version numbers.
+          IF !MCMAJOR! GEQ 26 IF %%C==!MCHOTFIX! (
+            IF DEFINED idv IF %%D GTR !idv! (
+              SET "idv=%%D"
+              SET "NEWESTVERSION=%%Q"
+            )
+            IF NOT DEFINED idv ( SET "NEWESTVERSION=%%Q" & SET "idv=0" )
+          )
+        )
     )
   )
-  IF NOT DEFINED NEWESTVERSION SET MAVENISSUE=Y
+  IF NOT DEFINED NEWESTVERSION SET "MAVENISSUE=Y"
 )
 
 :: If there exists no corresponding MC version to Modloader version.
@@ -4473,4 +4489,3 @@ IF DEFINED string (
     SET %~1=%L%
     EXIT /B
 )
-
