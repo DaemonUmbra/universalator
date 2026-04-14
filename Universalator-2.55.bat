@@ -1288,12 +1288,13 @@ IF NOT EXIST !mod_loader!-!MODLOADERVERSION!-installer.jar (
 )
 
 :: Does a checksum on the installer to see if it downloaded correctly.
+:: Changed to MD5 because for some reason SHA256 isn't available?
 SET "VALID_CHECKSUM="
-FOR /F "delims=" %%A IN ('curl -s !INSTALLER_URL!.sha256') DO SET "VALID_CHECKSUM=%%A"
+FOR /F "delims=" %%A IN ('curl -s !INSTALLER_URL!.md5') DO SET "VALID_CHECKSUM=%%A"
 
 IF DEFINED VALID_CHECKSUM (
   set /a idx=0
-  FOR /F %%F IN ('certutil -hashfile !mod_loader!-!MODLOADERVERSION!-installer.jar SHA256') DO (
+  FOR /F %%F IN ('certutil -hashfile !mod_loader!-!MODLOADERVERSION!-installer.jar MD5') DO (
     set FOUT[!idx!]=%%F
     set /a idx+=1
   )
