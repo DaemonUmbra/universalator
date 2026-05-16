@@ -742,9 +742,8 @@ IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT!==1.20.1 (
 )
 
 IF /I !MODLOADER!==NEOFORGE IF !MINECRAFT! NEQ 1.20.1 (
-  FOR /F "tokens=1-4 delims=.-" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\maven-neoforge-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
-    IF [%%D]==[] IF %%A==!MCMAJOR! IF %%B==!MCMINOR! IF !ENTRY!==%%A.%%B.%%C  GOTO :foundvalidforgeversion
-    IF [%%D] NEQ [] IF %%A==!MCMAJOR! IF %%B==!MCMINOR! IF !ENTRY!==%%A.%%B.%%C-%%D  GOTO :foundvalidforgeversion
+  FOR /F "delims=" %%A IN ('powershell -Command "$data = [xml](Get-Content -Path '!HEREPOWERSHELL!\univ-utils\maven-neoforge-metadata.xml'); $data.metadata.versioning.versions.version"') DO (
+    IF [!ENTRY!]==[%%A] GOTO :foundvalidforgeversion
   )
 )
 
@@ -1288,13 +1287,12 @@ IF NOT EXIST !mod_loader!-!MODLOADERVERSION!-installer.jar (
 )
 
 :: Does a checksum on the installer to see if it downloaded correctly.
-:: Changed to MD5 because for some reason SHA256 isn't available?
 SET "VALID_CHECKSUM="
-FOR /F "delims=" %%A IN ('curl -s !INSTALLER_URL!.md5') DO SET "VALID_CHECKSUM=%%A"
+FOR /F "delims=" %%A IN ('curl -s !INSTALLER_URL!.sha256') DO SET "VALID_CHECKSUM=%%A"
 
 IF DEFINED VALID_CHECKSUM (
   set /a idx=0
-  FOR /F %%F IN ('certutil -hashfile !mod_loader!-!MODLOADERVERSION!-installer.jar MD5') DO (
+  FOR /F %%F IN ('certutil -hashfile !mod_loader!-!MODLOADERVERSION!-installer.jar SHA256') DO (
     set FOUT[!idx!]=%%F
     set /a idx+=1
   )
