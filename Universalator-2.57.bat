@@ -441,10 +441,10 @@ IF /I !GET_XML!==True (
 IF EXIST "%HERE%\univ-utils\!METADATAFILE!" (
   :: If file exists, does a checksum on the installer to see if it downloaded correctly.
   SET "VALID_CHECKSUM="
-  FOR /F "delims=" %%A IN ('curl -s !METADATAURL!.md5') DO SET "VALID_CHECKSUM=%%A"
+  FOR /F "delims=" %%A IN ('curl -s !METADATAURL!.sha256') DO SET "VALID_CHECKSUM=%%A"
   IF DEFINED VALID_CHECKSUM (
     SET /a idx=0
-    FOR /F %%F IN ('certutil -hashfile univ-utils\!METADATAFILE! MD5') DO (
+    FOR /F %%F IN ('certutil -hashfile univ-utils\!METADATAFILE! SHA256') DO (
       SET FOUT[!idx!]=%%F
       SET /a idx+=1
     )
@@ -452,8 +452,8 @@ IF EXIST "%HERE%\univ-utils\!METADATAFILE!" (
     IF !VALID_CHECKSUM! NEQ !FILE_CHECKSUM! (
       CLS
       ECHO: & ECHO: & ECHO   !METADATAFILE! FILE CHECKSUM MISMATCH - LIKELY CORRUPTED DOWNLOAD
-      ECHO   '!VALID_CHECKSUM!'
-      ECHO   '!FOUT[1]!'
+      ECHO   '!VALID_CHECKSUM!' - Expected SHA256 checksum
+      ECHO   '!FOUT[1]!' - File SHA256 checksum
       ECHO   PRESS ANY KEY TO TRY AGAIN & ECHO: & ECHO:
       PAUSE
       DEL univ-utils\!METADATAFILE!
@@ -1298,7 +1298,9 @@ IF DEFINED VALID_CHECKSUM (
   )
   SET FILE_CHECKSUM=!FOUT[1]!
   IF !VALID_CHECKSUM! NEQ !FILE_CHECKSUM! (
-    ECHO: & ECHO   !MODLOADER!-!MODLOADERVERSION! INSTALLER CHECKSUM MISMATCH - LIKELY CORRUPTED DOWNLOAD
+    ECHO: & ECHO   !MODLOADER!-!MODLOADERVERSION! INSTALLER CHECKSUM MISMATCH - LIKELY CORRUPTED DOWNLOAD & ECHO: & ECHO:
+    ECHO   '!VALID_CHECKSUM!' - Expected SHA256 checksum
+    ECHO   '!FOUT[1]!' - File SHA256 checksum
     ECHO   PRESS ANY KEY TO TRY AGAIN
     PAUSE
     DEL !mod_loader!-!MODLOADERVERSION!-installer.jar
