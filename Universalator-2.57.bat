@@ -440,26 +440,26 @@ IF /I !GET_XML!==True (
 :: If script gets here then either no maven metadata file ever existed, or an old file was deleted, and none was obtained from the maven either due to download problems or because the maven is offline.
 IF EXIST "%HERE%\univ-utils\!METADATAFILE!" (
   :: If file exists, does a checksum on the installer to see if it downloaded correctly.
-  SET "VALID_CHECKSUM="
-  FOR /F "delims=" %%A IN ('curl -s !METADATAURL!.sha256') DO SET "VALID_CHECKSUM=%%A"
-  IF DEFINED VALID_CHECKSUM (
-    SET /a idx=0
-    FOR /F %%F IN ('certutil -hashfile univ-utils\!METADATAFILE! SHA256') DO (
-      SET FOUT[!idx!]=%%F
-      SET /a idx+=1
-    )
-    SET FILE_CHECKSUM=!FOUT[1]!
-    IF !VALID_CHECKSUM! NEQ !FILE_CHECKSUM! (
-      CLS
-      ECHO: & ECHO: & ECHO   !METADATAFILE! FILE CHECKSUM MISMATCH - LIKELY CORRUPTED DOWNLOAD
-      ECHO   '!VALID_CHECKSUM!' - Expected SHA256 checksum
-      ECHO   '!FOUT[1]!' - File SHA256 checksum
-      ECHO   PRESS ANY KEY TO TRY AGAIN & ECHO: & ECHO:
-      PAUSE
-      DEL univ-utils\!METADATAFILE!
-      GOTO :try_get_metadatafileagain
-    )
-  )
+  :: SET "VALID_CHECKSUM="
+  :: FOR /F "delims=" %%A IN ('curl -s !METADATAURL!.sha256') DO SET "VALID_CHECKSUM=%%A"
+  :: IF DEFINED VALID_CHECKSUM (
+  ::   SET /a idx=0
+  ::   FOR /F %%F IN ('certutil -hashfile univ-utils\!METADATAFILE! SHA256') DO (
+  ::     SET FOUT[!idx!]=%%F
+  ::     SET /a idx+=1
+  ::   )
+  ::   SET FILE_CHECKSUM=!FOUT[1]!
+  ::   IF !VALID_CHECKSUM! NEQ !FILE_CHECKSUM! (
+  ::     CLS
+  ::     ECHO: & ECHO: & ECHO   !METADATAFILE! FILE CHECKSUM MISMATCH - LIKELY CORRUPTED DOWNLOAD
+  ::     ECHO   '!VALID_CHECKSUM!' - Expected SHA256 checksum
+  ::     ECHO   '!FOUT[1]!' - File SHA256 checksum
+  ::     ECHO   PRESS ANY KEY TO TRY AGAIN & ECHO: & ECHO:
+  ::     PAUSE
+  ::     DEL univ-utils\!METADATAFILE!
+  ::     GOTO :try_get_metadatafileagain
+  ::   )
+  :: )
 ) ELSE (
   CLS
   ECHO: & ECHO: & ECHO: & ECHO   %red% OOPS %blue% - %yellow% A DOWNLOAD OF THE MAVEN METADATA FILE WAS ATTEMPTED FOR THE %green% !MODLOADER! %yellow% FILE SERVER %blue% & ECHO:
