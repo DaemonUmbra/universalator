@@ -438,7 +438,7 @@ IF /I !GET_XML!==True (
 )
 
 :: If script gets here then either no maven metadata file ever existed, or an old file was deleted, and none was obtained from the maven either due to download problems or because the maven is offline.
-IF EXIST "%HERE%\univ-utils\!METADATAFILE!" (
+:: IF EXIST "%HERE%\univ-utils\!METADATAFILE!" (
   :: If file exists, does a checksum on the installer to see if it downloaded correctly.
   :: SET "VALID_CHECKSUM="
   :: FOR /F "delims=" %%A IN ('curl -s !METADATAURL!.sha256') DO SET "VALID_CHECKSUM=%%A"
@@ -460,14 +460,15 @@ IF EXIST "%HERE%\univ-utils\!METADATAFILE!" (
   ::     GOTO :try_get_metadatafileagain
   ::   )
   :: )
-) ELSE (
-  CLS
-  ECHO: & ECHO: & ECHO: & ECHO   %red% OOPS %blue% - %yellow% A DOWNLOAD OF THE MAVEN METADATA FILE WAS ATTEMPTED FOR THE %green% !MODLOADER! %yellow% FILE SERVER %blue% & ECHO:
-  ECHO   %yellow% BUT THE FILE WAS NOT FOUND AFTER THE DOWNLOAD ATTEMPT. %blue%
-  ECHO   %yellow% MAYBE YOUR WINDOWS USER DOES NOT HAVE SUFFIENT PERMISSIONS?  OR YOU MAY HAVE AN OVERLY AGGRESSIVE ANTIVIRUS PROGRAM. %blue% & ECHO: & ECHO   %yellow% PRESS ANY KEY TO START OVER. %blue% & ECHO: & ECHO: & ECHO:
-  PAUSE
-  GOTO :try_get_metadatafileagain
-)
+:: ) ELSE (
+::   CLS
+::   ECHO: & ECHO: & ECHO: & ECHO   %red% OOPS %blue% - %yellow% A DOWNLOAD OF THE MAVEN METADATA FILE WAS ATTEMPTED FOR THE %green% !MODLOADER! %yellow% FILE SERVER %blue% & ECHO:
+::   ECHO   %yellow% BUT THE FILE WAS NOT FOUND AFTER THE DOWNLOAD ATTEMPT. %blue%
+::   ECHO   %yellow% MAYBE YOUR WINDOWS USER DOES NOT HAVE SUFFIENT PERMISSIONS?  OR YOU MAY HAVE AN OVERLY AGGRESSIVE ANTIVIRUS PROGRAM. %blue% & ECHO: & ECHO   %yellow% PRESS ANY KEY TO START OVER. %blue% & ECHO: & ECHO: & ECHO:
+::   PAUSE
+::   GOTO :try_get_metadatafileagain
+:: )
+
 EXIT /B
 :: END FUNCTION TO GET THE MAVEN METADATA FILE FOR WHICHEVER MODLOADER IS SET
 
@@ -1639,7 +1640,7 @@ ECHO    LAN IPv4 AND PORT         - %green% !LOCALIP!:%PORT% %blue%
 ECHO    TO CONNECT ON SAME PC USE - %green% localhost %blue% ^< This text
 ECHO:
 ECHO ============================================ & ECHO: & ECHO:
-ECHO   %yellow% READY TO LAUNCH FORGE SERVER! %blue%
+ECHO   %yellow% READY TO LAUNCH !MODLOADER! SERVER! %blue%
 ECHO:
 ECHO            %yellow% ENTER 'M' FOR MAIN MENU %blue%
 ECHO            %yellow% ENTER ANY OTHER KEY TO START SERVER LAUNCH %blue%
@@ -3523,8 +3524,10 @@ FOR /F "usebackq delims=" %%A IN (`powershell -Command "$space = try { (Get-CimI
 )
 
 FOR /F "delims=" %%A IN ('powershell -Command "$data = try { get-psdrive %CD:~0,1% } catch { $null }; if($data) { $result = [math]::Round(($data.used/($data.free+$data.used)) * 100) } else { -1 }; $result"') DO (
-  SET "DISKPERCENT=%%A" 
-  IF !DISKPERCENT! NEQ -1 IF !DISKPERCENT! GEQ 95 SET "DISKWORRY=Y"
+  SET "DISKPERCENT=%%A"
+  IF !DISKPERCENT! GTR 1 IF !DISKPERCENT! LSS 100 (
+    IF !DISKPERCENT! GEQ 95 SET "DISKWORRY=Y"
+  )
 )
 
 :: If either of the above is of concern then show a bypassable warning message
